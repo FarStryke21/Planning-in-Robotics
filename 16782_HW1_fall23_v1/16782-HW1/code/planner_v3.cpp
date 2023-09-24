@@ -72,10 +72,6 @@ int calculateHeuristic(int x, int y, int target_x, int target_y, double* map, in
     return 100*std::max(abs(x - target_x), abs(y - target_y));
 }
 
-bool compareByFValue(const Node& lhs, const Node& rhs) {
-    return lhs.f < rhs.f;
-}
-
 
 std::pair<std::vector<std::pair<int, int>>, int> A_star(
     double*	map,            // Location of Map

@@ -1,7 +1,7 @@
 /*=================================================================
  *
  * planner.cpp
- *
+ * Octal heuristics and highly optimised code
  *=================================================================*/
 
 #include <stdio.h>
@@ -24,7 +24,6 @@
 
 bool PATHFLAG = true;
 int track = 1;
-int i = 1;
 std::vector<std::pair<int, int>> path;
 
 struct Node {
@@ -81,7 +80,7 @@ std::pair<std::vector<std::pair<int, int>>, int> A_star(
     std::vector<std::pair<int, int>> directions = {{-1, 0}, {0, -1}, {1, 0}, {0, 1}, {-1, -1}, {-1, 1}, {1, -1}, {1, 1}};
     std::set<Node> openSet;
     std::set<Node> closedSet;
-    std::vector<std::pair<int, int>> fpath;
+    std::vector<std::pair<int, int>> path;
 
     int g = 0;
     int h = calculateHeuristic(startposeX, startposeY, goalposeX, goalposeY, map, collision_thresh, x_size, y_size, target_steps, target_traj);
@@ -93,18 +92,14 @@ std::pair<std::vector<std::pair<int, int>>, int> A_star(
         closedSet.insert(*current);                     // Add the node to the closed set
         // printf("Current: %d %d | Open Set = %d | Closed Set = %d\n", current->x, current->y, openSet.size(), closedSet.size());
         if (current->x == goalposeX && current->y == goalposeY) {
-            printf("Path found!\n");
+            // printf("Path found!\n");
             int cost = current->g;
             while (current->parent != nullptr) {
-                fpath.push_back({current->x, current->y});
+                path.push_back({current->x, current->y});
                 current = current->parent;
             }
-            std::reverse(fpath.begin(), fpath.end());
-            // Print the path
-            // for(int i = 0; i < fpath.size(); i++){
-            //     // printf("Path %d: %d %d |->|", i, fpath[i].first, fpath[i].second);
-            // }
-            return std::make_pair(fpath, cost);
+            std::reverse(path.begin(), path.end());
+            return std::make_pair(path, cost);
        }
 
        for(int dir = 0; dir < NUMOFDIRS; dir++){
@@ -121,23 +116,20 @@ std::pair<std::vector<std::pair<int, int>>, int> A_star(
                 // printf("Element not in Closed Set...\n");
                 if(std::find_if(openSet.begin(), openSet.end(), [&](const Node& node) {return node.x == neighbor->x && node.y == neighbor->y;}) == openSet.end()) {
                     // printf("Element not in Open Set...\n");
-                    openSet.insert(*neighbor);
-                    
+                    Node* old_neighbor = new Node(*(std::find_if(openSet.begin(), openSet.end(), [&](const Node& node) {return node.x == neighbor->x && node.y == neighbor->y && neighbor->f < node.f;})));
+                    if (neighbor->f < old_neighbor->f) {
+                        openSet.erase(*old_neighbor);
+                        openSet.insert(*neighbor);
+                    }
                 }
                 else{
                     // printf("Element exists in Open Set...\n");
-                    Node* old_neighbor = new Node(*(std::find_if(openSet.begin(), openSet.end(), [&](const Node& node) {return node.x == neighbor->x && node.y == neighbor->y;})));
-                    if (neighbor->f < old_neighbor->f) {
-                        // printf("New f value is less than old f value...\n");
-                        openSet.erase(*old_neighbor);
-                        openSet.insert(*neighbor); 
-                    }
                 }
             }
         }
         
     }
-    return std::make_pair(fpath, 0);
+    return std::make_pair(path, 0);
 }
 
 void planner(
@@ -155,20 +147,19 @@ void planner(
     int* action_ptr
     )
 {
-    int goalposeX;
-    int goalposeY;
+    int goalposeX = (int) target_traj[target_steps-1];
+    int goalposeY = (int) target_traj[target_steps-1+target_steps];
 
     printf("Timestamp: %d | Robot %d, %d | Target: %d, %d\n ", curr_time, robotposeX, robotposeY, targetposeX, targetposeY);
-    // printf("goal: %d %d;\n", goalposeX, goalposeY);
+    printf("goal: %d %d;\n", goalposeX, goalposeY);
+    
+    if (robotposeX == goalposeX && robotposeY == goalposeY){
+        action_ptr[0] = robotposeX;
+        action_ptr[1] = robotposeY;
+        return;
+    }
     
     if (PATHFLAG){
-        goalposeX = (int) target_traj[target_steps-1];
-        goalposeY = (int) target_traj[target_steps-1+target_steps];
-        if (robotposeX == goalposeX && robotposeY == goalposeY){
-            action_ptr[0] = robotposeX;
-            action_ptr[1] = robotposeY;
-            return;
-        }
         PATHFLAG = false;
         path = A_star(map, collision_thresh, x_size, y_size, robotposeX, robotposeY, target_steps, target_traj, goalposeX, goalposeY).first;
         printf("Path Size: %d\n", path.size());
@@ -183,34 +174,17 @@ void planner(
             track++;
         }
         else{
-            i++;
-            printf("Path Complete...Planning Ahead\n");
-            if(sqrt(pow(robotposeX-targetposeX, 2) + pow(robotposeY-targetposeY, 2)) < 5)
-            {
-                action_ptr[0] = robotposeX;
-                action_ptr[1] = robotposeY;
-                return;
-            }
-            else{
-                goalposeX = (int) target_traj[target_steps-i];
-                goalposeY = (int) target_traj[target_steps-i+target_steps];
-                printf("goal: %d %d;\n", goalposeX, goalposeY);
-                std::vector<std::pair<int, int>> temp_path;
-                temp_path = A_star(map, collision_thresh, x_size, y_size, robotposeX, robotposeY, target_steps, target_traj, goalposeX, goalposeY).first;
-                printf("Path Size: %d\n", temp_path.size());
-                // printf("Path Step: %d %d\n", temp_path[0].first, temp_path[0].second);
-                if (temp_path.size() == 0){
-                    action_ptr[0] = robotposeX;
-                    action_ptr[1] = robotposeY;
-                    return;
-                }
-                else{
-                    action_ptr[0] = temp_path[0].first;
-                    action_ptr[1] = temp_path[0].second;
-                }
-                return;
-            }
+             action_ptr[0] = robotposeX;
+            action_ptr[1] = robotposeY;
         }
         return;
     }
+
+    
+    // goalposeX = (int) target_traj[curr_time+1];
+    // goalposeY = (int) target_traj[curr_time+1+target_steps];
+    // path = A_star(map, collision_thresh, x_size, y_size, robotposeX, robotposeY, target_steps, target_traj, goalposeX, goalposeY).first;
+    // action_ptr[0] = path[0].first;
+    // action_ptr[1] = path[0].second;
+    // return;
 }
