@@ -1,7 +1,7 @@
 /*=================================================================
  *
  * planner.cpp
- *
+ * Octal heuristics and highly optimised code. Allows backmotion.
  *=================================================================*/
 
 #include <stdio.h>
@@ -61,7 +61,7 @@ bool isValid(int x, int y, int* map, int collision_thresh, int x_size, int y_siz
 }
 
 int calculateHeuristic(int x, int y, int target_x, int target_y, int* map, int collision_thresh, int x_size, int y_size, int target_steps, int* target_traj) {
-    return 3 * int(1.4142*MIN(abs(x - target_x), abs(y - target_y)) - MIN(abs(x - target_x), abs(y - target_y)) + MAX(abs(x - target_x), abs(y - target_y)));
+    return 2* int(1.4142*MIN(abs(x - target_x), abs(y - target_y)) + abs(abs(x - target_x) - abs(y - target_y)));
 }
 
 std::pair<std::vector<std::pair<int, int>>, int> A_star(
@@ -108,8 +108,7 @@ std::pair<std::vector<std::pair<int, int>>, int> A_star(
             int newy = current->y + directions[dir].second;
             // printf("New: %d %d\n", newx, newy);
             if (isValid(newx, newy, map, collision_thresh, x_size, y_size)) {
-                int tentative_cost = int(map[GETMAPINDEX(newx, newy, x_size, y_size)]/collision_thresh) + 1;
-                int g = current->g + tentative_cost;
+                int g = current->g + 1;
                 int h = calculateHeuristic(newx, newy, goalposeX, goalposeY, map, collision_thresh, x_size, y_size, target_steps, target_traj);
                 Node* neighbor = new Node(newx, newy, g, h , g+h, current);
                 if (std::find_if(closedSet.begin(), closedSet.end(), [&](const Node& node) {return node.x == neighbor->x && node.y == neighbor->y;}) != closedSet.end()) {

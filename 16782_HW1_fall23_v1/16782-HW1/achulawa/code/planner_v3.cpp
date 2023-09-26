@@ -69,14 +69,7 @@ int calculateHeuristic(int x, int y, int target_x, int target_y, double* map, in
     // return 10*(abs(x - target_x) + abs(y - target_y));
     // return (int) 100*sqrt(pow(x - target_x, 2) + pow(y - target_y, 2));
     // return A_star(map, collision_thresh, x_size, y_size, target_x, target_y, target_steps, target_traj, x, y).second;
-    // return 100*std::max(abs(x - target_x), abs(y - target_y));
-    int delX = abs(x - target_x);
-    int delY = abs(y - target_y);
-    return 100*int(1.414*MIN(delX, delY) + MAX(delX, delY) - MIN(delX, delY));
-}
-
-bool compareByFValue(const Node& lhs, const Node& rhs) {
-    return lhs.f < rhs.f;
+    return 100*std::max(abs(x - target_x), abs(y - target_y));
 }
 
 
