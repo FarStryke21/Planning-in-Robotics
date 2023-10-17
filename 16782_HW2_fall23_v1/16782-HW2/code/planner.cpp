@@ -58,6 +58,7 @@ using std::make_tuple;
 using std::tie;
 using std::cout;
 using std::endl;
+using namespace std;
 
 //*******************************************************************************************************************//
 //                                                                                                                   //
@@ -287,6 +288,121 @@ int IsValidArmConfiguration(double* angles, int numofDOFs, double*	map,
 	return 1;
 }
 
+//**************************************MY FUCNTIONS*****************************************************************//
+struct Node {
+    double* angles;
+    Node* parent;
+};
+
+// Helper function to generate a random valid configuration
+double* getRandomConfiguration(int numofDOFs) {
+    random_device rd;
+    mt19937 gen(rd());
+    uniform_real_distribution<> dis(0.0, 2 * M_PI);
+
+    double* config = new double[numofDOFs];
+    for (int i = 0; i < numofDOFs; i++) {
+        config[i] = dis(gen);
+    }
+
+    return config;
+}
+
+double* getRandomConfiguration_Biased(int numofDOFs, double* goalConfig) {
+    double tuning_param = 0.2;
+	double* config = new double[numofDOFs];
+	double value = ((double) rand() / (RAND_MAX));
+	if (value < tuning_param)
+	{
+		for (int i = 0; i < numofDOFs; i++) 
+		{
+			config[i] = goalConfig[i];
+		}
+	}
+	else
+	{
+		random_device rd;
+		mt19937 gen(rd());
+		uniform_real_distribution<> dis(0.0, 2 * M_PI);
+		for (int i = 0; i < numofDOFs; i++) 
+		{
+			config[i] = dis(gen);
+		}
+	}
+    return config;
+}
+
+// Function to find the nearest neighbor in the tree to a given configuration
+Node* nearestNeighbor(double* sample, vector<Node*>& tree, int numofDOFs) {
+    Node* nearest = nullptr;
+    double minDistance = numeric_limits<double>::max();
+
+    for (Node* node : tree) {
+        double distance = 0;
+        for (int i = 0; i < numofDOFs; i++) 
+		{ 
+            double diff = sample[i] - node->angles[i];
+            distance += diff * diff;
+        }
+        if (distance < minDistance) 
+		{
+            minDistance = distance;
+            nearest = node;
+        }
+    }
+
+    return nearest;
+}
+
+// Function to extend the tree towards a random sample
+Node* extendTree(double* randomSample, vector<Node*>& tree, double stepSize, int numofDOFs) {
+    double* angles = new double[numofDOFs];
+	Node* nearest = nearestNeighbor(randomSample, tree, numofDOFs);
+
+    for (int i = 0; i < numofDOFs; i++) {
+        angles[i] = nearest->angles[i] + stepSize * (randomSample[i] - nearest->angles[i]);
+    }
+	Node* newNode = new Node{angles, nearest};
+    return newNode;
+}
+
+void extendTree_RRTConnect(std::vector<Node*>& treeFrom, std::vector<Node*>& treeTo, double stepSize, int numofDOFs, double* map, int x_size, int y_size) {
+    // Generate a random sample
+    double* randomSample = getRandomConfiguration_Biased(numofDOFs, treeTo.back()->angles);
+	// double* randomSample = getRandomConfiguration(numofDOFs);
+    // Use extendTree to extend treefrom towards randomSample
+	Node* newNode = extendTree(randomSample, treeFrom, stepSize, numofDOFs);
+
+	// If newNode has valid configuration, add it to treeFrom, else exit
+	if(!IsValidArmConfiguration(newNode->angles, numofDOFs, map, x_size, y_size))
+	{
+		return;
+	}
+	treeFrom.push_back(newNode);
+
+    // find the nearest node in treeTo to the new node
+	Node* nearest = nearestNeighbor(newNode->angles, treeTo, numofDOFs);
+
+	if(equalDoubleArrays(nearest->angles, newNode->angles, numofDOFs))
+	{
+		return;
+	}
+
+	Node* treeTo_newNode = new Node{nearest->angles, nearest};
+
+	// from treeTo_newNode, interpolate towards newNode in step sizes until either the new node is reached or an obstacle is hit
+	while(!equalDoubleArrays(treeTo_newNode->angles, newNode->angles, numofDOFs) && IsValidArmConfiguration(treeTo_newNode->angles, numofDOFs, map, x_size, y_size))
+	{
+		double* angles = new double[numofDOFs];
+		for (int i = 0; i < numofDOFs; i++) 
+		{
+			angles[i] = treeTo_newNode->angles[i] + stepSize * (newNode->angles[i] - treeTo_newNode->angles[i]);
+		}	
+		treeTo_newNode->angles = angles;
+	}
+	treeTo.push_back(treeTo_newNode);
+}
+
 //*******************************************************************************************************************//
 //                                                                                                                   //
 //                                          DEFAULT PLANNER FUNCTION                                                 //
@@ -303,6 +419,7 @@ static void planner(
             double*** plan,
             int* planlength)
 {
+	printf("planner call...\n");
 	//no plan by default
 	*plan = NULL;
 	*planlength = 0;
@@ -315,11 +432,13 @@ static void planner(
         if(distance < fabs(armstart_anglesV_rad[j] - armgoal_anglesV_rad[j]))
             distance = fabs(armstart_anglesV_rad[j] - armgoal_anglesV_rad[j]);
     }
+	printf("the distance between the configuration is %f\n", distance);
     int numofsamples = (int)(distance/(PI/20));
     if(numofsamples < 2){
         printf("the arm is already at the goal\n");
         return;
     }
+	printf("the number of samples is %d\n", numofsamples);
     *plan = (double**) malloc(numofsamples*sizeof(double*));
     int firstinvalidconf = 1;
     for (i = 0; i < numofsamples; i++){
@@ -333,7 +452,7 @@ static void planner(
         }
     }    
     *planlength = numofsamples;
-    
+    printf("planner: plan is of length=%d\n", *planlength);
     return;
 }
 
@@ -354,7 +473,68 @@ static void plannerRRT(
     int *planlength)
 {
     /* TODO: Replace with your implementation */
-    // planner(map, x_size, y_size, armstart_anglesV_rad, armgoal_anglesV_rad, numofDOFs, plan, planlength);
+    // Initialize tree with the start configuration
+    Node* startNode = new Node{armstart_anglesV_rad, nullptr};
+    vector<Node*> tree = {startNode};
+
+	// Set a flag
+	int flag = 0;
+
+    // Set a step size for extending the tree
+    double stepSize = 0.1; 
+
+    // Define the maximum number of iterations (you may adjust this based on your needs)
+    int maxIterations = 100000;
+
+    for (int i = 0; i < maxIterations; i++) {
+        // Generate a random sample
+		printf("Iteration %d\n", i);
+        // double* randomSample = getRandomConfiguration(numofDOFs);
+		double* randomSample = getRandomConfiguration_Biased(numofDOFs, armgoal_anglesV_rad);
+		Node* newNode = extendTree(randomSample, tree, stepSize, numofDOFs);
+
+		if(IsValidArmConfiguration(newNode->angles, numofDOFs, map, x_size, y_size)) 
+		{	
+			// Print the angles of the current nodes
+
+			printf("Valid configuration!| Tree: %ld | Angles : [%f, %f, %f, %f, %f]\n", tree.size(), newNode->angles[0], newNode->angles[1], newNode->angles[2], newNode->angles[3], newNode->angles[4]);
+			tree.push_back(newNode);
+			if (equalDoubleArrays(newNode->angles, armgoal_anglesV_rad, numofDOFs)) {
+				// Add the goal configuration to the tree
+				flag = 1;
+				Node* goalNode = new Node{armgoal_anglesV_rad, newNode};
+				tree.push_back(goalNode);
+				break;
+			}
+		}
+	}
+
+	// Find the path from the goal configuration to the start configuration
+	if(flag == 1)
+	{
+		vector<double*> path;
+		Node* currentNode = tree.back();
+		while (currentNode != nullptr) {
+			path.push_back(currentNode->angles);
+			currentNode = currentNode->parent;
+		}
+		reverse(path.begin(), path.end());
+
+		// Set the plan and plan length
+		*plan = new double*[path.size()];
+		for (int i = 0; i < path.size(); i++) {
+			(*plan)[i] = path[i];
+		}
+		*planlength = path.size();
+		
+	}
+	else
+	{
+		*plan = NULL;
+		*planlength = 0;
+		printf("No path found!\n");
+	}
+
 }
 
 //*******************************************************************************************************************//
@@ -374,7 +554,71 @@ static void plannerRRTConnect(
     int *planlength)
 {
     /* TODO: Replace with your implementation */
-    // planner(map, x_size, y_size, armstart_anglesV_rad, armgoal_anglesV_rad, numofDOFs, plan, planlength);
+	// Initialize tree with the start configuration
+    Node* startNode = new Node{armstart_anglesV_rad, nullptr};
+    std::vector<Node*> treeStart = {startNode};
+    Node* goalNode = new Node{armgoal_anglesV_rad, nullptr};
+    std::vector<Node*> treeGoal = {goalNode};
+
+    // Set a step size for extending the tree
+    double stepSize = 0.01;
+
+    // Define the maximum number of iterations (you may adjust this based on your needs)
+    int maxIterations = 100000;
+
+    for (int i = 0; i < maxIterations; i++) 
+	{
+		printf("Iteration %d | Start tree : %ld | Goal Tree : %ld \n", i, treeStart.size(), treeGoal.size());
+        // Alternate between extending trees
+        if (i % 2 == 0) {
+            extendTree_RRTConnect(treeStart, treeGoal, stepSize, numofDOFs, map, x_size, y_size);
+        } else {
+            extendTree_RRTConnect(treeGoal, treeStart, stepSize, numofDOFs, map, x_size, y_size);
+        }
+
+        // Check if trees have connected
+        if (equalDoubleArrays(treeStart.back()->angles, treeGoal.back()->angles, numofDOFs)) 
+		{
+			printf("Trees have connected!\n");
+            // create two paths, one from the start tree and one from the goal tree. Flip the goal tree path, and concatenate the two paths after removing the duplicate node and linking the pointer of the last element of start tree path to the last element of the goal tree path
+			vector<double*> pathStart;
+			Node* currentNode = treeStart.back();
+			while (currentNode != nullptr) {
+				pathStart.push_back(currentNode->angles);
+				currentNode = currentNode->parent;
+			}
+			reverse(pathStart.begin(), pathStart.end());
+
+			vector<double*> pathGoal;
+			currentNode = treeGoal.back();
+			while (currentNode != nullptr) 
+			{
+				pathGoal.push_back(currentNode->angles);
+				currentNode = currentNode->parent;
+			}
+			// reverse(pathGoal.begin(), pathGoal.end());
+
+			// Remove the duplicate node
+			pathGoal.erase(pathGoal.begin());
+
+			// Concatenate the two paths
+			pathStart.insert(pathStart.end(), pathGoal.begin(), pathGoal.end());
+
+			// Set the plan and plan length
+			*plan = new double*[pathStart.size()];
+			for (int i = 0; i < pathStart.size(); i++) 
+			{
+				(*plan)[i] = pathStart[i];
+			}
+			*planlength = pathStart.size();
+			return;	
+        }
+    }
+
+    // No path found
+    *plan = NULL;
+    *planlength = 0;
+    printf("No path found!\n");
 }
 
 //*******************************************************************************************************************//
@@ -394,7 +638,7 @@ static void plannerRRTStar(
     int *planlength)
 {
     /* TODO: Replace with your implementation */
-    // planner(map, x_size, y_size, armstart_anglesV_rad, armgoal_anglesV_rad, numofDOFs, plan, planlength);
+    planner(map, x_size, y_size, armstart_anglesV_rad, armgoal_anglesV_rad, numofDOFs, plan, planlength);
 }
 
 //*******************************************************************************************************************//
