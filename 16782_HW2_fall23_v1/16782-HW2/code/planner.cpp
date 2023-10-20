@@ -293,8 +293,10 @@ struct Node {
     double* angles;
     Node* parent;
 	double cost;
+	vector<Node*> neighbors;
 	Node(double* angles, Node* parent) : angles(angles), parent(parent) { cost = std::numeric_limits<double>::infinity();}
 	Node(double* angles, Node* parent, double cost) : angles(angles), parent(parent), cost(cost) {}
+	Node(double* angles, vector<Node*> neighbors) : angles(angles), neighbors(neighbors) {}
 };
 
 // Helper function to generate a random valid configuration
@@ -401,11 +403,41 @@ void extendTree_RRTConnect(std::vector<Node*>& treeFrom, std::vector<Node*>& tre
 	treeTo.push_back(treeTo_newNode);
 }
 
+// Function to check if the edge is valid
+bool isValidEdge(Node* node1, Node* node2, double* map, int x_size, int y_size) 
+{
+	double* angles1 = node1->angles;
+	double* angles2 = node2->angles;
+
+	double x0 = ((double)x_size)/2.0;
+	double y0 = 0;
+	for (int i = 0; i < 5; i++) 
+	{
+		double x1 = x0 + LINKLENGTH_CELLS * cos(2 * PI - angles1[i]);
+		double y1 = y0 - LINKLENGTH_CELLS * sin(2 * PI - angles1[i]);
+		double x2 = x0 + LINKLENGTH_CELLS * cos(2 * PI - angles2[i]);
+		double y2 = y0 - LINKLENGTH_CELLS * sin(2 * PI - angles2[i]);
+
+		if (!IsValidLineSegment(x1, y1, x2, y2, map, x_size, y_size)) 
+		{
+			return false;
+		}
+
+		x0 = x1;
+		y0 = y1;
+	}
+
+	return true;
+}
+
 // Function to find nodes within a certain radius of a given node
-vector<Node*> findNearNodes(vector<Node*>& tree, Node* newNode, double radius) {
+vector<Node*> findNearNodes(vector<Node*>& tree, Node* newNode, double radius) 
+{
     vector<Node*> nearNodes;
-    for (Node* node : tree) {
-        if (distance(node->angles, newNode->angles) <= radius) {
+    for (Node* node : tree) 
+	{
+        if (distance(node->angles, newNode->angles) <= radius) 
+		{
             nearNodes.push_back(node);
         }
     }
@@ -413,14 +445,227 @@ vector<Node*> findNearNodes(vector<Node*>& tree, Node* newNode, double radius) {
 }
 
 // Function to compute the Euclidean distance between two configurations
-double distance(double* angles1, double* angles2, int numofDOFs) {
+double distance(double* angles1, double* angles2, int numofDOFs) 
+{
     double distanceSquared = 0;
-    for (int i = 0; i < numofDOFs; i++) {
+    for (int i = 0; i < numofDOFs; i++) 
+	{
         double diff = angles1[i] - angles2[i];
         distanceSquared += diff * diff;
     }
     return sqrt(distanceSquared);
 }
+
+// Function to find the five nearest neighbour of the given node
+vector<Node*> findNearestNeighbors(Node* node, vector<Node*>& roadmap, int k, int numofDOFs) 
+{
+	vector<Node*> nearestNeighbors;
+	vector<double> distances;
+
+	for (Node* neighbor : roadmap) 
+	{
+		if (neighbor != node) 
+		{
+			double distance = 0;
+			for (int i = 0; i < numofDOFs; i++) 
+			{
+				double diff = node->angles[i] - neighbor->angles[i];
+				distance += diff * diff;
+			}
+			distances.push_back(distance);
+		}
+	}
+	sort(distances.begin(), distances.end());
+	for (int i = 0; i < k; i++) 
+	{
+		for (Node* neighbor : roadmap) 
+		{
+			if (neighbor != node) 
+			{
+				double distance = 0;
+				for (int i = 0; i < 5; i++) 
+				{
+					double diff = node->angles[i] - neighbor->angles[i];
+					distance += diff * diff;
+				}
+				if (distance == distances[i]) 
+				{
+					nearestNeighbors.push_back(neighbor);
+				}
+			}
+		}
+	}
+	return nearestNeighbors;
+}
+
+// Function to generate PRM roadmap
+vector<Node*> generatePRMRoadmap(int numNodes, int k, double* map, int x_size, int y_size, int numofDOFs) 
+{
+    vector<Node*> roadmap;
+
+	printf("Generating PRM roadmap Nodes...\n");
+    for (int i = 0; i < numNodes; ++i) 
+	{
+		if (i % 10000 == 0)
+		{
+			printf("Iteration %d\n", i);
+		}
+        double* randomSample = getRandomConfiguration(numofDOFs);
+        if (IsValidArmConfiguration(randomSample, numofDOFs, map, x_size, y_size)) 
+		{
+            Node* newNode = new Node{randomSample, nullptr};
+            roadmap.push_back(newNode);
+        }
+    }
+
+	printf("Generating PRM roadmap Edges...\n");
+    for (Node* node : roadmap) 
+	{
+        vector<Node*> nearestNeighbors = findNearestNeighbors(node, roadmap, k, numofDOFs);
+        for (Node* neighbor : nearestNeighbors) 
+		{
+            if (isValidEdge(node, neighbor, map, x_size, y_size)) 
+			{
+                node->neighbors.push_back(neighbor);
+                neighbor->neighbors.push_back(node);
+            }
+        }
+    }
+
+    return roadmap;
+}
+
+// The Dijkstra algorithm
+vector<Node*> dijkstra(Node* startNode, Node* goalNode) 
+{
+	vector<Node*> path;
+	vector<Node*> openSet;
+	vector<Node*> closedSet;
+
+	startNode->cost = 0;
+	openSet.push_back(startNode);
+
+	while (!openSet.empty()) {
+		Node* currentNode = openSet[0];
+		int currentIndex = 0;
+		for (int i = 0; i < openSet.size(); i++) {
+			if (openSet[i]->cost < currentNode->cost) {
+				currentNode = openSet[i];
+				currentIndex = i;
+			}
+		}
+
+		openSet.erase(openSet.begin() + currentIndex);
+		closedSet.push_back(currentNode);
+
+		if (currentNode == goalNode) {
+			Node* current = currentNode;
+			while (current != nullptr) {
+				path.push_back(current);
+				current = current->parent;
+			}
+			reverse(path.begin(), path.end());
+			return path;
+		}
+
+		for (Node* neighbor : currentNode->neighbors) {
+			if (find(closedSet.begin(), closedSet.end(), neighbor) != closedSet.end()) {
+				continue;
+			}
+
+			double newCost = currentNode->cost + distance(currentNode->angles, neighbor->angles);
+			if (newCost < neighbor->cost) {
+				neighbor->cost = newCost;
+				neighbor->parent = currentNode;
+				if (find(openSet.begin(), openSet.end(), neighbor) == openSet.end()) {
+					openSet.push_back(neighbor);
+				}
+			}
+		}
+	}
+	return path;
+}
+
+// Implement A star algorithm for the roadmap search
+vector<Node*> aStar(Node* startNode, Node* goalNode) 
+{
+	vector<Node*> path;
+	vector<Node*> openSet;
+	vector<Node*> closedSet;
+
+	startNode->cost = 0;
+	openSet.push_back(startNode);
+
+	while (!openSet.empty()) {
+		Node* currentNode = openSet[0];
+		int currentIndex = 0;
+		for (int i = 0; i < openSet.size(); i++) {
+			if (openSet[i]->cost < currentNode->cost) {
+				currentNode = openSet[i];
+				currentIndex = i;
+			}
+		}
+
+		openSet.erase(openSet.begin() + currentIndex);
+		closedSet.push_back(currentNode);
+
+		if (currentNode == goalNode) {
+			Node* current = currentNode;
+			while (current != nullptr) {
+				path.push_back(current);
+				current = current->parent;
+			}
+			reverse(path.begin(), path.end());
+			return path;
+		}
+
+		for (Node* neighbor : currentNode->neighbors) {
+			if (find(closedSet.begin(), closedSet.end(), neighbor) != closedSet.end()) {
+				continue;
+			}
+
+			double newCost = currentNode->cost + distance(currentNode->angles, neighbor->angles);
+			if (newCost < neighbor->cost) {
+				neighbor->cost = newCost;
+				neighbor->parent = currentNode;
+				if (find(openSet.begin(), openSet.end(), neighbor) == openSet.end()) {
+					openSet.push_back(neighbor);
+				}
+			}
+		}
+	}
+	return path;
+}
+
+// Function to find path using PRM roadmap
+vector<Node*> findPathPRM(Node* startNode, Node* goalNode) 
+{
+    // vector<Node*> path = dijkstra(startNode, goalNode);
+	vector<Node*> path = aStar(startNode, goalNode);
+    return path;
+}
+
+// Implement Short Cutting for the path where the path is a vector of double*. Return the shortcut path as a vector of double*, shortcutting the path by removing nodes that are not necessary
+vector<double*> shortCut(vector<double*>& path, double* map, int x_size, int y_size, int numofDOFs) 
+{
+	vector<double*> shortcutPath;
+	shortcutPath.push_back(path[0]);
+	int i = 1;
+	while(i <  path.size() - 2)
+	{
+		double* config1 = path[i-1];
+		double* config2 = path[i + 1];
+		while(isValidEdge(new Node{config1, nullptr}, new Node{config2, nullptr}, map, x_size, y_size))
+		{
+			i++;
+			config2 = path[i + 1];
+		}
+		shortcutPath.push_back(config2);
+	}
+	shortcutPath.push_back(path[path.size() - 1]);
+	return shortcutPath;
+}
+
 //*******************************************************************************************************************//
 //                                                                                                                   //
 //                                          DEFAULT PLANNER FUNCTION                                                 //
@@ -715,6 +960,8 @@ static void plannerRRTStar(
             currentNode = currentNode->parent;
         }
         reverse(path.begin(), path.end());
+		// Shortcutting the path
+		// vector<double*> shortCutPath = shortCut(path, map, x_size, y_size, numofDOFs);
 
         // Set the plan and plan length
         *plan = new double*[path.size()];
@@ -750,7 +997,50 @@ static void plannerPRM(
     int *planlength)
 {
     /* TODO: Replace with your implementation */
-    planner(map, x_size, y_size, armstart_anglesV_rad, armgoal_anglesV_rad, numofDOFs, plan, planlength);
+    // planner(map, x_size, y_size, armstart_anglesV_rad, armgoal_anglesV_rad, numofDOFs, plan, planlength);
+	int numNodes = 100000; // Number of nodes to generate
+    int k = 5; // Number of nearest neighbors to consider
+
+    // Generate PRM roadmap
+    vector<Node*> roadmap = generatePRMRoadmap(numNodes, k, map, x_size, y_size, numofDOFs);
+	printf("Roadmap generated!\n");
+
+    // Find start and goal nodes
+    Node* startNode = nearestNeighbor(armstart_anglesV_rad, roadmap, numofDOFs);
+    Node* goalNode = nearestNeighbor(armgoal_anglesV_rad, roadmap, numofDOFs);
+
+    // Find path
+    vector<Node*> path = findPathPRM(startNode, goalNode);
+
+	// Create a node from the start and goal position and add them to the path
+	Node* start = new Node{armstart_anglesV_rad, nullptr};
+	Node* goal = new Node{armgoal_anglesV_rad, nullptr};
+	goal->parent = path.back();
+	path.insert(path.begin(), start);
+	path.push_back(goal);
+
+    if (!path.empty()) 
+	{
+		printf("Path found!\n");
+		// Convert the path to a vector of double*
+		vector<double*> p;
+		for (int i = 0; i < path.size(); i++) 
+		{
+            p.push_back(path[i]->angles);
+        }
+		
+		*plan = new double*[p.size()];
+        for (int i = 0; i < p.size(); i++) {
+            (*plan)[i] = p[i];
+        }
+        *planlength = p.size();
+    } 
+	else 
+	{
+        *plan = NULL;
+        *planlength = 0;
+        printf("No path found!\n");
+    }
 }
 
 //*******************************************************************************************************************//
