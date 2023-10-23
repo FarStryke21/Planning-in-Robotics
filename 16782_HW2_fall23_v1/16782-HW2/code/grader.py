@@ -74,9 +74,9 @@ def graderMain(executablePath, gradingCSV):
                     scores.append([aPlanner, inputMap, i, numSteps, cost, timespent, success])
             
                 ### Visualize their results
-                commandViz = "python visualizer.py grader_out/tmp.txt --gifFilepath=grader_out/grader_{}{}.gif".format(plannerList[aPlanner], i)
-                commandViz += " --incPrev=1"
-                subprocess.run(commandViz.split(" "), check=True) # True if want to see failure errors
+                # commandViz = "python3 visualizer.py grader_out/tmp.txt --gifFilepath=grader_out/grader_{}{}.gif".format(plannerList[aPlanner], i)
+                # commandViz += " --incPrev=1"
+                # subprocess.run(commandViz.split(" "), check=True) # True if want to see failure errors
             except Exception as exc:
                 print("Failed: {} !!".format(exc))
                 scores.append([aPlanner, inputMap, i, -1, -1, timespent, False])

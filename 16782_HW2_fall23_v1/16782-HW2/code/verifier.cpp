@@ -238,19 +238,27 @@ int IsValidLineSegment(double x0, double y0, double x1, double y1, double*	map,
     x1 < 0 || x1 >= x_size ||
     y0 < 0 || y0 >= y_size ||
     y1 < 0 || y1 >= y_size)
-    return 0;
-
+    {
+      // printf("outside the map\n");
+      return 0;
+    }
   ContXY2Cell(x0, y0, &nX0, &nY0, x_size, y_size);
   ContXY2Cell(x1, y1, &nX1, &nY1, x_size, y_size);
 
     //printf("checking link <%d %d> to <%d %d>\n", nX0,nY0,nX1,nY1);
+    // Print all elements of the map in a straight line
+
 
   //iterate through the points on the segment
   get_bresenham_parameters(nX0, nY0, nX1, nY1, &params);
   do {
     get_current_point(&params, &nX, &nY);
     if(map[GETMAPINDEX(nX,nY,x_size,y_size)] == 1)
+          {
+            // printf("map[%d] is 1\n", GETMAPINDEX(nX,nY,x_size,y_size));
+            // map[855] = 9;
             return 0;
+          }
   } while (get_next_point(&params));
 
   return 1;
@@ -275,8 +283,11 @@ int IsValidArmConfiguration(double* angles, int numofDOFs, double*	map,
 
     //check the validity of the corresponding line segment
     if(!IsValidLineSegment(x0,y0,x1,y1,map,x_size,y_size))
-        return 0;
-  }    
+    {
+      printf("arm segment %d is invalid\n",i);
+      return 0;
+    }  
+  }  
     return 1;
 }
 
@@ -315,13 +326,23 @@ int main(int argc, char** argv) {
     std::getline(infile, curLine); // Don't care about map
     double* curPos = nullptr;
     double* nextPos;
+    
+
+
     while (std::getline(infile, curLine)) {
         nextPos = doubleArrayFromString(curLine);
         
         //// Check nextPos is valid
         if (!IsValidArmConfiguration(nextPos, numOfDOFs, map, x_size, y_size)) {
             infile.close();
-            printf("Failed verifier!\n");
+            printf("Failed verifier!-> Invalid Configuration\n");
+            // Print the invalid configuration
+            for (int i = 0; i < numOfDOFs; ++i) {
+                cout << nextPos[i] << " ";
+            }
+            cout << endl;
+            // Print the entire map
+    
             return -1; // -1 is failure
         }
 
@@ -329,7 +350,7 @@ int main(int argc, char** argv) {
         if (curPos == nullptr) {
             if (!equalDoubleArrays(nextPos, startPos, numOfDOFs)) {
                 infile.close();
-                printf("Failed verifier!\n");
+                printf("Failed verifier!->Start Position Mismatch\n");
                 return -1; // -1 is failure
             }
         }
@@ -337,7 +358,7 @@ int main(int argc, char** argv) {
     }
     if (!equalDoubleArrays(nextPos, goalPos, numOfDOFs)) { // Check goal positions match
         infile.close();
-        printf("Failed verifier!\n");
+        printf("Failed verifier!->End Position Mismatch\n");
         return -1; // -1 is failure
     }
     infile.close();
