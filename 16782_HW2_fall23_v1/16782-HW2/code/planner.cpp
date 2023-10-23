@@ -125,7 +125,7 @@ double* doubleArrayFromString(string str) {
 bool equalDoubleArrays(double* v1, double *v2, int size) {
     for (int i = 0; i < size; ++i) {
         if (abs(v1[i]-v2[i]) > 1e-3) {
-            cout << endl;
+            // cout << endl;
             return false;
         }
     }
@@ -314,7 +314,7 @@ double* getRandomConfiguration(int numofDOFs) {
 }
 
 double* getRandomConfiguration_Biased(int numofDOFs, double* goalConfig) {
-    double tuning_param = 0.25;
+    double tuning_param = 0.4;
 	double* config = new double[numofDOFs];
 	double value = ((double) rand() / (RAND_MAX));
 	if (value < tuning_param)
@@ -503,13 +503,13 @@ vector<Node*> generatePRMRoadmap(int numNodes, int k, double* map, int x_size, i
 {
     vector<Node*> roadmap;
 
-	printf("Generating PRM roadmap Nodes...\n");
+	// printf("Generating PRM roadmap Nodes...\n");
     for (int i = 0; i < numNodes; ++i) 
 	{
-		if (i % 10000 == 0)
-		{
-			printf("Iteration %d\n", i);
-		}
+		// if (i % 10000 == 0)
+		// {
+		// 	printf("Iteration %d\n", i);
+		// }
         double* randomSample = getRandomConfiguration(numofDOFs);
         if (IsValidArmConfiguration(randomSample, numofDOFs, map, x_size, y_size)) 
 		{
@@ -518,7 +518,7 @@ vector<Node*> generatePRMRoadmap(int numNodes, int k, double* map, int x_size, i
         }
     }
 
-	printf("Generating PRM roadmap Edges...\n");
+	// printf("Generating PRM roadmap Edges...\n");
     for (Node* node : roadmap) 
 	{
         vector<Node*> nearestNeighbors = findNearestNeighbors(node, roadmap, k, numofDOFs);
@@ -744,24 +744,28 @@ static void plannerRRT(
 	int flag = 0;
 
     // Set a step size for extending the tree
-    double stepSize = 0.1; 
+    double stepSize = 0.25; 
 
     // Define the maximum number of iterations (you may adjust this based on your needs)
-    int maxIterations = 100000;
+    int maxIterations = 1000000;
 
-    for (int i = 0; i < maxIterations; i++) {
+    while(flag == 0 && tree.size() < maxIterations) {
         // Generate a random sample
-		printf("Iteration %d\n", i);
+		// printf("Iteration %d\n", i);
         // double* randomSample = getRandomConfiguration(numofDOFs);
+		
 		double* randomSample = getRandomConfiguration_Biased(numofDOFs, armgoal_anglesV_rad);
+		// printf("Random Sample Generated\n");
 		Node* newNode = extendTree(randomSample, tree, stepSize, numofDOFs);
+		// printf("Tree Extended\n");
 
 		if(IsValidArmConfiguration(newNode->angles, numofDOFs, map, x_size, y_size)) 
 		{	
 			// Print the angles of the current nodes
 
-			printf("Valid configuration!| Tree: %ld | Angles : [%f, %f, %f, %f, %f]\n", tree.size(), newNode->angles[0], newNode->angles[1], newNode->angles[2], newNode->angles[3], newNode->angles[4]);
+			// printf("Valid configuration!| Tree: %ld | Angles : [%f, %f, %f, %f, %f]\n", tree.size(), newNode->angles[0], newNode->angles[1], newNode->angles[2], newNode->angles[3], newNode->angles[4]);
 			tree.push_back(newNode);
+			// printf("Valid Configuration -> Node Added to Tree\n");
 			if (equalDoubleArrays(newNode->angles, armgoal_anglesV_rad, numofDOFs)) {
 				// Add the goal configuration to the tree
 				flag = 1;
@@ -770,12 +774,13 @@ static void plannerRRT(
 				break;
 			}
 		}
+		// printf("Iteration Complete!\n");
 	}
 
 	// Find the path from the goal configuration to the start configuration
 	if(flag == 1)
 	{
-		printf("Path found!\n");
+		// printf("Path found!\n");
 		vector<double*> path;
 		Node* currentNode = tree.back();
 		while (currentNode != nullptr) {
@@ -796,7 +801,7 @@ static void plannerRRT(
 	{
 		*plan = NULL;
 		*planlength = 0;
-		printf("No path found!\n");
+		// printf("No path found!\n");
 	}
 
 }
@@ -832,7 +837,7 @@ static void plannerRRTConnect(
 
     for (int i = 0; i < maxIterations; i++) 
 	{
-		printf("Iteration %d | Start tree : %ld | Goal Tree : %ld \n", i, treeStart.size(), treeGoal.size());
+		// printf("Iteration %d | Start tree : %ld | Goal Tree : %ld \n", i, treeStart.size(), treeGoal.size());
         // Alternate between extending trees
         if (i % 2 == 0) {
             extendTree_RRTConnect(treeStart, treeGoal, stepSize, numofDOFs, map, x_size, y_size);
@@ -844,7 +849,7 @@ static void plannerRRTConnect(
         // Check if trees have connected
         if (equalDoubleArrays(treeStart.back()->angles, treeGoal.back()->angles, numofDOFs)) 
 		{
-			printf("Trees have connected!\n");
+			// printf("Trees have connected!\n");
             // create two paths, one from the start tree and one from the goal tree. Flip the goal tree path, and concatenate the two paths after removing the duplicate node and linking the pointer of the last element of start tree path to the last element of the goal tree path
 			vector<double*> pathStart;
 			Node* currentNode = treeStart.back();
@@ -883,7 +888,7 @@ static void plannerRRTConnect(
     // No path found
     *plan = NULL;
     *planlength = 0;
-    printf("No path found!\n");
+    // printf("No path found!\n");
 }
 
 //*******************************************************************************************************************//
@@ -919,7 +924,7 @@ static void plannerRRTStar(
 
     for (int i = 0; i < maxIterations; i++) {
         // Generate a random sample
-        printf("Iteration %d\n", i);
+        // printf("Iteration %d\n", i);
         double* randomSample = getRandomConfiguration_Biased(numofDOFs, armgoal_anglesV_rad);
         Node* newNode = extendTree(randomSample, tree, stepSize, numofDOFs);
 
@@ -927,7 +932,7 @@ static void plannerRRTStar(
         {   
             // Print the angles of the current nodes
 
-            printf("Valid configuration!| Tree: %ld | Angles : [%f, %f, %f, %f, %f]\n", tree.size(), newNode->angles[0], newNode->angles[1], newNode->angles[2], newNode->angles[3], newNode->angles[4]);
+            // printf("Valid configuration!| Tree: %ld | Angles : [%f, %f, %f, %f, %f]\n", tree.size(), newNode->angles[0], newNode->angles[1], newNode->angles[2], newNode->angles[3], newNode->angles[4]);
             tree.push_back(newNode);
 
             // Rewire the tree
@@ -952,7 +957,7 @@ static void plannerRRTStar(
     // Find the path from the goal configuration to the start configuration
     if(flag == 1)
     {
-		printf("Path found!\n");
+		// printf("Path found!\n");
         vector<double*> path;
         Node* currentNode = tree.back();
         while (currentNode != nullptr) {
@@ -975,7 +980,7 @@ static void plannerRRTStar(
     {
         *plan = NULL;
         *planlength = 0;
-        printf("No path found!\n");
+        // printf("No path found!\n");
     }
 }
 
@@ -1003,7 +1008,7 @@ static void plannerPRM(
 
     // Generate PRM roadmap
     vector<Node*> roadmap = generatePRMRoadmap(numNodes, k, map, x_size, y_size, numofDOFs);
-	printf("Roadmap generated!\n");
+	// printf("Roadmap generated!\n");
 
     // Find start and goal nodes
     Node* startNode = nearestNeighbor(armstart_anglesV_rad, roadmap, numofDOFs);
@@ -1021,7 +1026,7 @@ static void plannerPRM(
 
     if (!path.empty()) 
 	{
-		printf("Path found!\n");
+		// printf("Path found!\n");
 		// Convert the path to a vector of double*
 		vector<double*> p;
 		for (int i = 0; i < path.size(); i++) 
@@ -1039,7 +1044,7 @@ static void plannerPRM(
 	{
         *plan = NULL;
         *planlength = 0;
-        printf("No path found!\n");
+        // printf("No path found!\n");
     }
 }
 
@@ -1085,22 +1090,22 @@ int main(int argc, char** argv) {
     // Call the corresponding planner function
     if (whichPlanner == PRM)
     {	
-		printf("Calling plannerPRM ...\n");
+		// printf("Calling plannerPRM ...\n");
         plannerPRM(map, x_size, y_size, startPos, goalPos, numOfDOFs, &plan, &planlength);
     }
     else if (whichPlanner == RRT)
     {
-		printf("Calling plannerRRT ...\n");
+		// printf("Calling plannerRRT ...\n");
         plannerRRT(map, x_size, y_size, startPos, goalPos, numOfDOFs, &plan, &planlength);
     }
     else if (whichPlanner == RRTCONNECT)
     {
-		printf("Calling plannerRRTConnect ...\n");
+		// printf("Calling plannerRRTConnect ...\n");
         plannerRRTConnect(map, x_size, y_size, startPos, goalPos, numOfDOFs, &plan, &planlength);
     }
     else if (whichPlanner == RRTSTAR)
     {
-		printf("Calling plannerRRTStar ...\n");
+		// printf("Calling plannerRRTStar ...\n");
         plannerRRTStar(map, x_size, y_size, startPos, goalPos, numOfDOFs, &plan, &planlength);
     }
     else
