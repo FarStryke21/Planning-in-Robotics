@@ -918,9 +918,6 @@ static void plannerRRTConnect(
 				pathGoal.push_back(currentNode->angles);
 				currentNode = currentNode->parent;
 			}
-			// reverse(pathGoal.begin(), pathGoal.end());
-			// Print the sizesd of both paths
-			// printf("Path Start : %ld | Path Goal : %ld\n", pathStart.size(), pathGoal.size());
 			// Remove the duplicate node
 			pathGoal.erase(pathGoal.begin());
 
@@ -963,7 +960,6 @@ static void plannerRRTStar(
     int *planlength)
 {
     /* TODO: Replace with your implementation */
-    // planner(map, x_size, y_size, armstart_anglesV_rad, armgoal_anglesV_rad, numofDOFs, plan, planlength);
 	// Initialize tree with the start configuration
     Node* startNode = new Node{armstart_anglesV_rad, nullptr};
     vector<Node*> tree = {startNode};
@@ -972,10 +968,10 @@ static void plannerRRTStar(
     int flag = 0;
 
     // Set a step size for extending the tree
-    double stepSize = 0.1; 
+    double stepSize = 0.25; 
 
     // Define the maximum number of iterations (you may adjust this based on your needs)
-    int maxIterations = 20000;
+    int maxIterations = 5000;
 
     while(flag == 0 && tree.size() < maxIterations) {
         // Generate a random sample
@@ -1060,8 +1056,8 @@ static void plannerPRM(
     int *planlength)
 {
     /* TODO: Replace with your implementation */
-	int numNodes = 10000; // Number of nodes to generate
-    int k = 5; // Number of nearest neighbors to consider
+	int numNodes = 5000; // Number of nodes to generate
+    int k = 3; // Number of nearest neighbors to consider
 
 	// Call the random sample generator (Used to generare the random samples for the report)
 	// double** randomSample = generateValidSamples(4, armgoal_anglesV_rad, map, x_size, y_size);
