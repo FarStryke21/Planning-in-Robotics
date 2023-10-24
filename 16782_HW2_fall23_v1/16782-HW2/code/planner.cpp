@@ -684,6 +684,36 @@ vector<double*> shortCut(vector<double*>& path, double* map, int x_size, int y_s
 	return shortcutPath;
 }
 
+// Function to generate 40 valid sample confgurations of the arm of given DOF.
+double** generateValidSamples(int numofDOFs, double* armgoal_anglesV_rad, double* map, int x_size, int y_size) {
+	double** validSamples = new double*[40];
+	int count = 0;
+	while (count < 40) {
+		double* randomSample = getRandomConfiguration(numofDOFs);
+		if (IsValidArmConfiguration(randomSample, numofDOFs, map, x_size, y_size)) {
+			validSamples[count] = randomSample;
+			count++;
+		}
+	}
+	// Print valid samples seperated by commas
+	for (int i = 0; i < 40; i++) {
+		if (i%2 != 0)
+			printf("\"");
+		else
+			printf("[\"./map2.txt\", \"");
+		for (int j = 0; j < numofDOFs; j++) 
+		{
+			printf("%f", validSamples[i][j]);
+			if (j != numofDOFs - 1)
+				printf(",");
+		}
+		if (i%2 != 0)
+			printf("\"],\n");
+		else
+			printf("\", ");
+	}
+	return validSamples;
+}
 //*******************************************************************************************************************//
 //                                                                                                                   //
 //                                          DEFAULT PLANNER FUNCTION                                                 //
@@ -762,14 +792,14 @@ static void plannerRRT(
 	int flag = 0;
 
     // Set a step size for extending the tree
-    double stepSize = 0.2; 
+    double stepSize = 0.15; 
 
     // Define the maximum number of iterations (you may adjust this based on your needs)
-    int maxIterations = 100000;
+    int maxIterations = 30000;
 
     while(flag == 0 && tree.size() < maxIterations) {
         // Generate a random sample
-		// printf("Iteration %d\n", i);
+		// printf("Iteration %ld\n", tree.size());
         // double* randomSample = getRandomConfiguration(numofDOFs);
 		
 		double* randomSample = getRandomConfiguration_Biased(numofDOFs, armgoal_anglesV_rad);
@@ -861,12 +891,12 @@ static void plannerRRTConnect(
         // Alternate between extending trees
         if (i % 2 == 0) {
             extendTree_RRTConnect(treeStart, treeGoal, stepSize, numofDOFs, map, x_size, y_size);
-			printf("Start Tree Extended | Start tree : %ld | Goal Tree : %ld \n", treeStart.size(), treeGoal.size());
+			// printf("Start Tree Extended | Start tree : %ld | Goal Tree : %ld \n", treeStart.size(), treeGoal.size());
 		
         } 
 		else {
             extendTree_RRTConnect(treeGoal, treeStart, stepSize, numofDOFs, map, x_size, y_size);
-			printf("Goal Tree Extended | Start tree : %ld | Goal Tree : %ld \n", treeStart.size(), treeGoal.size());
+			// printf("Goal Tree Extended | Start tree : %ld | Goal Tree : %ld \n", treeStart.size(), treeGoal.size());
         }
 
         // Check if trees have connected
@@ -890,7 +920,7 @@ static void plannerRRTConnect(
 			}
 			// reverse(pathGoal.begin(), pathGoal.end());
 			// Print the sizesd of both paths
-			printf("Path Start : %ld | Path Goal : %ld\n", pathStart.size(), pathGoal.size());
+			// printf("Path Start : %ld | Path Goal : %ld\n", pathStart.size(), pathGoal.size());
 			// Remove the duplicate node
 			pathGoal.erase(pathGoal.begin());
 
@@ -942,10 +972,10 @@ static void plannerRRTStar(
     int flag = 0;
 
     // Set a step size for extending the tree
-    double stepSize = 0.25; 
+    double stepSize = 0.1; 
 
     // Define the maximum number of iterations (you may adjust this based on your needs)
-    int maxIterations = 10000;
+    int maxIterations = 20000;
 
     while(flag == 0 && tree.size() < maxIterations) {
         // Generate a random sample
@@ -1030,9 +1060,11 @@ static void plannerPRM(
     int *planlength)
 {
     /* TODO: Replace with your implementation */
-    // planner(map, x_size, y_size, armstart_anglesV_rad, armgoal_anglesV_rad, numofDOFs, plan, planlength);
 	int numNodes = 10000; // Number of nodes to generate
-    int k = 3; // Number of nearest neighbors to consider
+    int k = 5; // Number of nearest neighbors to consider
+
+	// Call the random sample generator (Used to generare the random samples for the report)
+	// double** randomSample = generateValidSamples(4, armgoal_anglesV_rad, map, x_size, y_size);
 
     // Generate PRM roadmap
     vector<Node*> roadmap = generatePRMRoadmap(numNodes, k, map, x_size, y_size, numofDOFs);
