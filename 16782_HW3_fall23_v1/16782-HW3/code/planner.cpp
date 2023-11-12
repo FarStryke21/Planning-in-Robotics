@@ -36,21 +36,6 @@ using namespace std;
 
 bool print_status = true;
 
-struct node
-    {
-        unordered_set<GroundedCondition, GroundedConditionHasher, GroundedConditionComparator> state;
-
-        double f = DBL_MAX;
-        double g = DBL_MAX;
-        double h = DBL_MAX;
-        
-        int parentIndex = -1;
-
-        string parentNodeState = "";
-    };
-
-
-
 class GroundedCondition
 {
 private:
@@ -407,6 +392,12 @@ public:
         }
         throw runtime_error("Action " + name + " not found!");
     }
+
+    unordered_set<Action, ActionHasher, ActionComparator> get_actions()
+    {
+        return this->actions;
+    }
+
     unordered_set<string> get_symbols() const
     {
         return this->symbols;
@@ -804,18 +795,41 @@ Env* create_env(char* filename)
     return env;
 }
 
+struct node
+{
+    unordered_set<GroundedCondition, GroundedConditionHasher, GroundedConditionComparator> state;
+
+    double f = DBL_MAX;
+    double g = DBL_MAX;
+    double h = DBL_MAX;
+    
+    int parentIndex = -1;
+
+    string parentNodeState = "";
+};
+
 class Planner
 {   
 private:
     vector<GroundedAction> allGactions;
     unordered_set<Action, ActionHasher, ActionComparator> allActions;
     vector<string> allSymbols;
-    int heurType = 0;
+
 public:
     int numStates = 0;
     stack<GroundedAction> path;
     Env* env;
     string initNodeStr;
+    int heurType = 0;
+
+    int numOfSym = 0;
+    vector<vector<string>> combinations, permutations;
+    vector<string> tempComb;
+
+    Planner(Env* env)
+    {
+        this->env = env; 
+    }
 
     void getAllGactions(Action &action, vector<vector<string>> &args)
     {
@@ -1100,8 +1114,86 @@ public:
         return 0;
     }
 
+    void getCombs(int offset, int k)
+    {
+        if (k == 0) 
+        {
+            combinations.push_back(tempComb);
+            return;
+        }
+        for (int i = offset; i <= numOfSym - k; ++i) 
+        {
+            tempComb.push_back(allSymbols[i]);
+            getCombs(i+1, k-1);
+            tempComb.pop_back();
+        }
+    }
+
+    void getPerms(vector<string> &comb)
+    {
+        sort(comb.begin(), comb.end()); 
+        do
+        { 
+        permutations.push_back(comb); 
+        } while (next_permutation(comb.begin(), comb.end()));
+    }
+    void precompute()
+    {
+        // Store all Actions
+        allActions = env->get_actions();
+
+        // Store all Symbols as a Vetor
+        vector<string> allSymbolsVect(env->get_symbols().begin(), env->get_symbols().end());
+        allSymbols = allSymbolsVect;
+
+        numOfSym = allSymbols.size();
+        int numOfArgs = 0;
+
+        int actionIndex = 0;
+        
+        for(Action action : allActions)
+        {
+            numOfArgs = action.get_args().size();
+            getCombs(0, numOfArgs);
+            for(int i=0 ; i<combinations.size() ; i++)
+                getPerms(combinations[i]);
+            
+            if(0) // Print Combinations and Permutations:
+            {
+                for(int i=0 ; i<combinations.size() ; i++)
+                {
+                    for(int j=0 ; j<combinations[i].size() ; j++)
+                    {
+                        cout<<combinations[i][j]<<" ";
+                    }
+                    cout<<"\n";
+                }
+
+                cout<<"\n ALL Permutations:\n";
+                for(int i=0 ; i<permutations.size() ; i++)
+                {
+                    for(int j=0 ; j<permutations[i].size() ; j++)
+                    {
+                        cout<<permutations[i][j]<<" ";
+                    }
+                    cout<<"\n";
+                }
+            }
+            
+            // Send permutations to actions to get grounded actions
+            getAllGactions(action, permutations);
+
+            combinations.clear();
+            tempComb.clear();
+            permutations.clear();
+            ++actionIndex;
+        }
+    }
+
     void Astar()
     {
+        cout<<"Starting Astar\n"<<endl;
+
         unordered_map<string, bool> closedList;     //closedList of bool values for each cell
         unordered_map<string, node> nodeInfo;
         priority_queue<pair<double, string>, vector<pair<double, string>>, greater<pair<double, string>>> openList;   //f-value, node index (sorted in increasing order of f-value)
@@ -1118,6 +1210,7 @@ public:
 
         while (!openList.empty())
         {
+            printf("Length of Open List = %ld \n", openList.size());
             pair<double, string> curNodeStr = openList.top();
 
             openList.pop();
@@ -1133,7 +1226,7 @@ public:
             // Check if current state satisfies the Goal Conditions
             if(goalReached(curNode)) 
             {
-                cout<<"Number of states: "<<numStates<<"\n";
+                // cout<<"Number of states: "<<numStates<<"\n";
                 backtrack(curNodeStr.second, nodeInfo);
                 return;
             }
@@ -1145,6 +1238,8 @@ public:
             string hashedNewNode;
 
             // Find all the Valid Grounded Actions from this state
+            // printf("Finding all valid actions\n");
+            // printf("Number of actions: %ld\n", this->allGactions.size());
             for(GroundedAction ga : this->allGactions)
             {
                 actCounter++;
@@ -1182,7 +1277,7 @@ public:
 
                     if(0)   // Print the state after the action has been taken
                     {
-                        cout<<"State After Action:\n";
+                        // cout<<"State After Action:\n";
                         unordered_set<GroundedCondition, GroundedConditionHasher, GroundedConditionComparator>::const_iterator it;
                         for(it = newNode.state.begin(); it != newNode.state.end() ; ++it)
                         {
@@ -1217,14 +1312,21 @@ public:
 
 list<GroundedAction> planner(Env* env)
 {
-    // TODO: INSERT YOUR PLANNER HERE
-
-    // Blocks World example (CHANGE THIS)
-    cout << endl << "CREATING DEFAULT PLAN" << endl;
     list<GroundedAction> actions;
-    actions.push_back(GroundedAction("MoveToTable", { "A", "B" }));
-    actions.push_back(GroundedAction("Move", { "C", "Table", "A" }));
-    actions.push_back(GroundedAction("Move", { "B", "Table", "C" }));
+    
+    clock_t t;
+    t = clock();
+    Planner p(env);
+    p.precompute();
+    p.Astar();
+    t = clock() - t;
+    cout<<"Time Taken: "<<((float)t)/CLOCKS_PER_SEC<<" seconds\n";
+
+    while(!p.path.empty())
+    {
+        actions.push_back(p.path.top());
+        p.path.pop();
+    }
 
     return actions;
 }
