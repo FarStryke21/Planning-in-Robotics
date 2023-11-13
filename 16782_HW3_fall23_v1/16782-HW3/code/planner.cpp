@@ -272,11 +272,11 @@ public:
     {
         return this->args;
     }
-    unordered_set<Condition, ConditionHasher, ConditionComparator> get_preconditions() const
+    unordered_set<Condition, ConditionHasher, ConditionComparator> getPreconditions() const
     {
         return this->preconditions;
     }
-    unordered_set<Condition, ConditionHasher, ConditionComparator> get_effects() const
+    unordered_set<Condition, ConditionHasher, ConditionComparator> getEffects() const
     {
         return this->effects;
     }
@@ -293,11 +293,11 @@ public:
     {
         os << ac.toString() << endl;
         os << "Precondition: ";
-        for (Condition precond : ac.get_preconditions())
+        for (Condition precond : ac.getPreconditions())
             os << precond;
         os << endl;
         os << "Effect: ";
-        for (Condition effect : ac.get_effects())
+        for (Condition effect : ac.getEffects())
             os << effect;
         os << endl;
         return os;
@@ -799,9 +799,9 @@ struct node
 {
     unordered_set<GroundedCondition, GroundedConditionHasher, GroundedConditionComparator> state;
 
-    double f = DBL_MAX;
-    double g = DBL_MAX;
-    double h = DBL_MAX;
+    double f = std::numeric_limits<double>::infinity();
+    double g = std::numeric_limits<double>::infinity();
+    double h = std::numeric_limits<double>::infinity();
     
     int parentIndex = -1;
 
@@ -809,129 +809,99 @@ struct node
 };
 
 class Planner
-{   
-private:
-    vector<GroundedAction> allGactions;
-    unordered_set<Action, ActionHasher, ActionComparator> allActions;
-    vector<string> allSymbols;
+{ 
+public:  
+    vector<GroundedAction> allGactions;                                 // All Grounded Actions
+    unordered_set<Action, ActionHasher, ActionComparator> allActions;   // All Actions
+    vector<string> allSymbols;                                          // All Symbols
+    int numStates = 0;                                  // Number of states expanded
+    stack<GroundedAction> path;                         // Path from initial to goal state
+    Env* env;                                           // Environment
+    string initNodeStr;                                 // Initial Node String
+    int heurType = 0;                                   // Heuristic Type
 
-public:
-    int numStates = 0;
-    stack<GroundedAction> path;
-    Env* env;
-    string initNodeStr;
-    int heurType = 0;
+    int numOfSym = 0;                                   // Number of Symbols
+    vector<vector<string>> combinations, permutations;  // Combinations and Permutations
+    vector<string> tempComb;                            // Temporary Combination
 
-    int numOfSym = 0;
-    vector<vector<string>> combinations, permutations;
-    vector<string> tempComb;
-
+    // Constructor
     Planner(Env* env)
     {
         this->env = env; 
     }
 
+    // Get Grounded Actions
     void getAllGactions(Action &action, vector<vector<string>> &args)
     {
         //Store the actions preconditions and effects
-        unordered_set<Condition, ConditionHasher, ConditionComparator> action_preconds = action.get_preconditions();
-        unordered_set<Condition, ConditionHasher, ConditionComparator> action_effects = action.get_effects();
+        unordered_set<Condition, ConditionHasher, ConditionComparator> action_preconds = action.getPreconditions();
+        unordered_set<Condition, ConditionHasher, ConditionComparator> action_effects = action.getEffects();
 
         // Iterate over each permutation of arguments
-        for(vector<string> a : args)
+        for(vector<string> arg : args)
         {
-            list<string> gaArgs(a.begin(), a.end());  // The specific set of symbols being used
-            if(0)   // Print gaArgs
-            {
-                cout<<"Arguments to be inserted:\n";
-                list<string>::const_iterator it;
-                for(it = gaArgs.begin(); it != gaArgs.end() ; ++it)
-                {
-                    cout<<*it<<" ";
-                }
-                cout<<"\n";
-            }
+            list<string> gaArgs(arg.begin(), arg.end());  // The specific set of symbols being used
             
             unordered_map<string, string> argMap;   // Maps the general action symbols to the corresponding grounded action symbols
             list<string> action_args = action.get_args();
 
             // Building the Map
-            list<string>::const_iterator a_it, ga_it;
-            for (a_it = action_args.begin(), ga_it = gaArgs.begin(); a_it != action_args.end(); ++a_it, ++ga_it)
-                argMap[*a_it] = *ga_it;
+            list<string>::const_iterator action_it, gaction_it;
+            for (action_it = action_args.begin(), gaction_it = gaArgs.begin(); action_it != action_args.end(); ++action_it, ++gaction_it)
+                argMap[*action_it] = *gaction_it;
             
             unordered_set<GroundedCondition, GroundedConditionHasher, GroundedConditionComparator> groundedPreconds;
             unordered_set<GroundedCondition, GroundedConditionHasher, GroundedConditionComparator> groundedEffects;
 
+            // Grounding the preconditions
             for(Condition precond : action_preconds)
             {   
                 list<string> gcArgs;
                 list<string> precondArgs = precond.get_args();  // Make direct
-                list<string>::const_iterator p_it;
-                for(p_it = precondArgs.begin(); p_it != precondArgs.end() ; ++p_it)
+                list<string>::const_iterator precond_it;
+                for(precond_it = precondArgs.begin(); precond_it != precondArgs.end() ; ++precond_it)
                 {
-                    if(argMap[*p_it] == "")
+                    if(argMap[*precond_it] == "")
                     {
-                        gcArgs.push_back(*p_it);
+                        gcArgs.push_back(*precond_it);
                     }
                     else
                     {
-                        gcArgs.push_back(argMap[*p_it]);
+                        gcArgs.push_back(argMap[*precond_it]);
                     }
                 }
                 
                 GroundedCondition gc(precond.get_predicate(), gcArgs, precond.get_truth());
                 groundedPreconds.insert(gc); 
             }
-
-            if(0)   // Print GroundedPreconditions (symbols inserted for each condition)
-                {
-                    cout<<"Grounded Preconds:\n";
-                    unordered_set<GroundedCondition, GroundedConditionHasher, GroundedConditionComparator>::const_iterator it;
-                    for(it = groundedPreconds.begin(); it != groundedPreconds.end() ; ++it)
-                    {
-                        cout<<*it<<",";
-                    }
-                    cout<<"\n";
-                }
             
+            // Grounding the effects
             for(Condition effect : action_effects)
             {
                 list<string> gcArgs;
                 list<string> effectArgs = effect.get_args();  // Make direct
-                list<string>::const_iterator e_it;
-                for(e_it = effectArgs.begin(); e_it != effectArgs.end() ; ++e_it)
+                list<string>::const_iterator effect_it;
+                for(effect_it = effectArgs.begin(); effect_it != effectArgs.end() ; ++effect_it)
                 {
-                    if(argMap[*e_it] == "")
+                    if(argMap[*effect_it] == "")
                     {
-                        gcArgs.push_back(*e_it);
+                        gcArgs.push_back(*effect_it);
                     }
                     else
                     {
-                        gcArgs.push_back(argMap[*e_it]);
+                        gcArgs.push_back(argMap[*effect_it]);
                     }
-                    // cout<<argMap[*e_it]<<" -> "<<*e_it;
                 }
 
                 GroundedCondition gc(effect.get_predicate(), gcArgs, effect.get_truth());
                 groundedEffects.insert(gc);
             }
-
-            if(0)   // Print GroundedEffects (symbols inserted for each condition)
-                {
-                    cout<<"Grounded Effects:\n";
-                    unordered_set<GroundedCondition, GroundedConditionHasher, GroundedConditionComparator>::const_iterator it;
-                    for(it = groundedEffects.begin(); it != groundedEffects.end() ; ++it)
-                    {
-                        cout<<*it<<",";
-                    }
-                    cout<<"\n";
-                }
             GroundedAction ga(action.get_name(), gaArgs, groundedPreconds, groundedEffects);
             allGactions.push_back(ga);
         }
     }
 
+    // Check if Goal is reached
     inline bool goalReached(node & curNode)
     {
         for(GroundedCondition gc : env->get_goal_condition())
@@ -942,6 +912,7 @@ public:
         return 1;
     }
 
+    // Backtrack to get the path
     void backtrack(string& goalNodeStr, unordered_map<string, node>& nodeInfo)
     {
         string currNodeStr = goalNodeStr;
@@ -952,21 +923,27 @@ public:
         }
         return;
     }
+
+    // Hash the state
     string symbolichash(unordered_set<GroundedCondition, GroundedConditionHasher, GroundedConditionComparator>& stateset)
     {
         set<string> stringState;
         string hashedString = "";
 
+        // GroundedCondition in the stateset into a string and storing these strings in the stringState set
         for(GroundedCondition gc : stateset)
         {
             stringState.insert(gc.toString());
         }
+
+        // Concatenating the strings in the stringState set to get a single string
         for (auto it = stringState.begin(); it != stringState.end(); it++) 
             hashedString += *it; 
         
         return hashedString;
     }
 
+    // Get the path length
     double pathLength(string& goalNodeStr, unordered_map<string, node>& nodeInfo, string& h_initNodeStr)
     {
         string currNodeStr = goalNodeStr;
@@ -979,7 +956,9 @@ public:
         return pathlength;
     }
 
-    double heurAstar(unordered_set<GroundedCondition, GroundedConditionHasher, GroundedConditionComparator>& heurNode)
+
+    // Heuristic Astar
+    double heur_Astar(unordered_set<GroundedCondition, GroundedConditionHasher, GroundedConditionComparator>& heurNode)
     {
         unordered_map<string, bool> closedList;     //closedList of bool values for each cell
         unordered_map<string, node> nodeInfo;
@@ -1003,6 +982,7 @@ public:
             // Check if current state has been expanded before
             if(closedList[curNodeStr.second] == true)
                 continue;
+
             closedList[curNodeStr.second] = true;
 
             node curNode = nodeInfo[curNodeStr.second];
@@ -1048,18 +1028,6 @@ public:
                             newNode.state.insert(eff);
                         }
                     }
-
-                    if(0)   // Print the state after the action has been taken
-                    {
-                        cout<<"State After Action:\n";
-                        unordered_set<GroundedCondition, GroundedConditionHasher, GroundedConditionComparator>::const_iterator it;
-                        for(it = newNode.state.begin(); it != newNode.state.end() ; ++it)
-                        {
-                            cout<<*it<<",";
-                        }
-                        cout<<"\n";
-                    }
-
                     hashedNewNode = symbolichash(newNode.state);
                     if (closedList[hashedNewNode])
                         continue;
@@ -1092,10 +1060,13 @@ public:
     }
     double getHeuristic(unordered_set<GroundedCondition, GroundedConditionHasher, GroundedConditionComparator>& curNode)
     {
+        // Heuristic 0: Set Heuristic to 0
         if(heurType == 0)
         {
             return 0;
         }
+
+        // Heuristic 1: Set Heuristic to number of goal conditions not satisfied
         else if (heurType == 1)
         {
             double heur = 0;
@@ -1106,15 +1077,18 @@ public:
             }
             return heur;
         }
+
+        // Heuristic 2: Set Heuristic to path length from current state to goal state
         else if (heurType == 2)
         {
-            double heur = heurAstar(curNode);
+            double heur = heur_Astar(curNode);
             return heur;
         }
         return 0;
     }
 
-    void getCombs(int offset, int k)
+    // Get all Combinations
+    void getCombinations(int offset, int k)
     {
         if (k == 0) 
         {
@@ -1124,12 +1098,13 @@ public:
         for (int i = offset; i <= numOfSym - k; ++i) 
         {
             tempComb.push_back(allSymbols[i]);
-            getCombs(i+1, k-1);
+            getCombinations(i+1, k-1);
             tempComb.pop_back();
         }
     }
 
-    void getPerms(vector<string> &comb)
+    // Get all Permutations
+    void getPermutations(vector<string> &comb)
     {
         sort(comb.begin(), comb.end()); 
         do
@@ -1137,7 +1112,9 @@ public:
         permutations.push_back(comb); 
         } while (next_permutation(comb.begin(), comb.end()));
     }
-    void precompute()
+
+    // Preprocessing of the environment : Get all Grounded Actions
+    void preprocessing()
     {
         // Store all Actions
         allActions = env->get_actions();
@@ -1145,40 +1122,15 @@ public:
         // Store all Symbols as a Vetor
         vector<string> allSymbolsVect(env->get_symbols().begin(), env->get_symbols().end());
         allSymbols = allSymbolsVect;
-
         numOfSym = allSymbols.size();
-        int numOfArgs = 0;
 
-        int actionIndex = 0;
-        
+        // Build the list of all Grounded Actions
         for(Action action : allActions)
         {
-            numOfArgs = action.get_args().size();
-            getCombs(0, numOfArgs);
+            int numOfArgs = action.get_args().size();
+            getCombinations(0, numOfArgs);
             for(int i=0 ; i<combinations.size() ; i++)
-                getPerms(combinations[i]);
-            
-            if(0) // Print Combinations and Permutations:
-            {
-                for(int i=0 ; i<combinations.size() ; i++)
-                {
-                    for(int j=0 ; j<combinations[i].size() ; j++)
-                    {
-                        cout<<combinations[i][j]<<" ";
-                    }
-                    cout<<"\n";
-                }
-
-                cout<<"\n ALL Permutations:\n";
-                for(int i=0 ; i<permutations.size() ; i++)
-                {
-                    for(int j=0 ; j<permutations[i].size() ; j++)
-                    {
-                        cout<<permutations[i][j]<<" ";
-                    }
-                    cout<<"\n";
-                }
-            }
+                getPermutations(combinations[i]);
             
             // Send permutations to actions to get grounded actions
             getAllGactions(action, permutations);
@@ -1186,7 +1138,6 @@ public:
             combinations.clear();
             tempComb.clear();
             permutations.clear();
-            ++actionIndex;
         }
     }
 
@@ -1195,9 +1146,10 @@ public:
         cout<<"Starting Astar\n"<<endl;
 
         unordered_map<string, bool> closedList;     //closedList of bool values for each cell
-        unordered_map<string, node> nodeInfo;
+        unordered_map<string, node> nodeInfo;       //nodeInfo of node for each cell
         priority_queue<pair<double, string>, vector<pair<double, string>>, greater<pair<double, string>>> openList;   //f-value, node index (sorted in increasing order of f-value)
 
+        // Initialize the initial node
         node initNode;
         initNode.state = this->env->get_initial_condition();
         initNodeStr = symbolichash(initNode.state);
@@ -1237,9 +1189,6 @@ public:
 
             string hashedNewNode;
 
-            // Find all the Valid Grounded Actions from this state
-            // printf("Finding all valid actions\n");
-            // printf("Number of actions: %ld\n", this->allGactions.size());
             for(GroundedAction ga : this->allGactions)
             {
                 actCounter++;
@@ -1275,17 +1224,6 @@ public:
                         }
                     }
 
-                    if(0)   // Print the state after the action has been taken
-                    {
-                        // cout<<"State After Action:\n";
-                        unordered_set<GroundedCondition, GroundedConditionHasher, GroundedConditionComparator>::const_iterator it;
-                        for(it = newNode.state.begin(); it != newNode.state.end() ; ++it)
-                        {
-                            cout<<*it<<",";
-                        }
-                        cout<<"\n";
-                    }
-
                     hashedNewNode = symbolichash(newNode.state);
                     if (closedList[hashedNewNode])
                         continue;
@@ -1317,7 +1255,7 @@ list<GroundedAction> planner(Env* env)
     clock_t t;
     t = clock();
     Planner p(env);
-    p.precompute();
+    p.preprocessing();
     p.Astar();
     t = clock() - t;
     cout<<"Time Taken: "<<((float)t)/CLOCKS_PER_SEC<<" seconds\n";

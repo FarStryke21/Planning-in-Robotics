@@ -1,0 +1,16 @@
+Symbols: RoomA,RoomB,Robot,Door
+Initial conditions: In(Robot,RoomA), Locked(Door)
+Goal conditions: In(Robot,RoomB), Locked(Door)
+
+Actions:
+        MoveToRoom(robot,source,destination,door)
+        Preconditions: In(robot,source), UnLocked(door)
+        Effects: In(robot,destination), !In(robot,source) 
+
+        UnlockDoor(door)
+        Preconditions: Locked(door)
+        Effects: UnLocked(door), !Locked(door)
+        
+        LockDoor(door)
+        Preconditions: UnLocked(door)
+        Effects: !UnLocked(door), Locked(door)
