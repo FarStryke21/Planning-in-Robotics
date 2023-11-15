@@ -457,12 +457,12 @@ public:
             this->gEffects.insert(gc);
     }
     
-    unordered_set<GroundedCondition, GroundedConditionHasher, GroundedConditionComparator> get_preconditions()
+    unordered_set<GroundedCondition, GroundedConditionHasher, GroundedConditionComparator> getPreconditions()
     {
         return this->gPreconditions;
     }
 
-    unordered_set<GroundedCondition, GroundedConditionHasher, GroundedConditionComparator> get_effects()
+    unordered_set<GroundedCondition, GroundedConditionHasher, GroundedConditionComparator> getEffects()
     {
         return this->gEffects;
     }
@@ -811,18 +811,17 @@ struct node
 class Planner
 { 
 public:  
-    vector<GroundedAction> allGactions;                                 // All Grounded Actions
+    Env* env;                                               // Environment
+    int numStates = 0;                                      // Number of states expanded
+    stack<GroundedAction> path;                             // Path from initial to goal state
+    string nodeStr;                                         // Initial Node String
+    int whichHeur = 1;                                      // Heuristic Type
+    int numOfSym = 0;                                       // Number of Symbols
+    vector<vector<string>> combinations, permutations;      // Combinations and Permutations
+    vector<string> comb;                                    // Temporary Combination
+    vector<GroundedAction> allGroundedActions;                          // All Grounded Actions
     unordered_set<Action, ActionHasher, ActionComparator> allActions;   // All Actions
     vector<string> allSymbols;                                          // All Symbols
-    int numStates = 0;                                  // Number of states expanded
-    stack<GroundedAction> path;                         // Path from initial to goal state
-    Env* env;                                           // Environment
-    string initNodeStr;                                 // Initial Node String
-    int heurType = 0;                                   // Heuristic Type
-
-    int numOfSym = 0;                                   // Number of Symbols
-    vector<vector<string>> combinations, permutations;  // Combinations and Permutations
-    vector<string> tempComb;                            // Temporary Combination
 
     // Constructor
     Planner(Env* env)
@@ -831,11 +830,11 @@ public:
     }
 
     // Get Grounded Actions
-    void getAllGactions(Action &action, vector<vector<string>> &args)
+    void getAllGroundedActions(Action &action, vector<vector<string>> &args)
     {
         //Store the actions preconditions and effects
-        unordered_set<Condition, ConditionHasher, ConditionComparator> action_preconds = action.getPreconditions();
-        unordered_set<Condition, ConditionHasher, ConditionComparator> action_effects = action.getEffects();
+        unordered_set<Condition, ConditionHasher, ConditionComparator> preconditions = action.getPreconditions();
+        unordered_set<Condition, ConditionHasher, ConditionComparator> effects = action.getEffects();
 
         // Iterate over each permutation of arguments
         for(vector<string> arg : args)
@@ -850,33 +849,29 @@ public:
             for (action_it = action_args.begin(), gaction_it = gaArgs.begin(); action_it != action_args.end(); ++action_it, ++gaction_it)
                 argMap[*action_it] = *gaction_it;
             
-            unordered_set<GroundedCondition, GroundedConditionHasher, GroundedConditionComparator> groundedPreconds;
+            unordered_set<GroundedCondition, GroundedConditionHasher, GroundedConditionComparator> groundedPreconditions;
             unordered_set<GroundedCondition, GroundedConditionHasher, GroundedConditionComparator> groundedEffects;
 
             // Grounding the preconditions
-            for(Condition precond : action_preconds)
+            for(Condition precondition : preconditions)
             {   
                 list<string> gcArgs;
-                list<string> precondArgs = precond.get_args();  // Make direct
+                list<string> precondArgs = precondition.get_args();  // Make direct
                 list<string>::const_iterator precond_it;
                 for(precond_it = precondArgs.begin(); precond_it != precondArgs.end() ; ++precond_it)
                 {
                     if(argMap[*precond_it] == "")
-                    {
                         gcArgs.push_back(*precond_it);
-                    }
                     else
-                    {
                         gcArgs.push_back(argMap[*precond_it]);
-                    }
                 }
                 
-                GroundedCondition gc(precond.get_predicate(), gcArgs, precond.get_truth());
-                groundedPreconds.insert(gc); 
+                GroundedCondition gc(precondition.get_predicate(), gcArgs, precondition.get_truth());
+                groundedPreconditions.insert(gc); 
             }
             
             // Grounding the effects
-            for(Condition effect : action_effects)
+            for(Condition effect : effects)
             {
                 list<string> gcArgs;
                 list<string> effectArgs = effect.get_args();  // Make direct
@@ -884,41 +879,35 @@ public:
                 for(effect_it = effectArgs.begin(); effect_it != effectArgs.end() ; ++effect_it)
                 {
                     if(argMap[*effect_it] == "")
-                    {
                         gcArgs.push_back(*effect_it);
-                    }
                     else
-                    {
                         gcArgs.push_back(argMap[*effect_it]);
-                    }
                 }
 
                 GroundedCondition gc(effect.get_predicate(), gcArgs, effect.get_truth());
                 groundedEffects.insert(gc);
             }
-            GroundedAction ga(action.get_name(), gaArgs, groundedPreconds, groundedEffects);
-            allGactions.push_back(ga);
+            GroundedAction ga(action.get_name(), gaArgs, groundedPreconditions, groundedEffects);
+            allGroundedActions.push_back(ga);
         }
     }
 
     // Check if Goal is reached
-    inline bool goalReached(node & curNode)
+    bool goalReached(node & curNode)
     {
-        for(GroundedCondition gc : env->get_goal_condition())
-        {   
+        for(GroundedCondition gc : env->get_goal_condition()) 
             if(curNode.state.find(gc) == curNode.state.end())
                 return 0;
-        }
         return 1;
     }
 
     // Backtrack to get the path
-    void backtrack(string& goalNodeStr, unordered_map<string, node>& nodeInfo)
+    void getPath(string& goalNodeStr, unordered_map<string, node>& nodeInfo)
     {
         string currNodeStr = goalNodeStr;
-        while(currNodeStr != initNodeStr)
+        while(currNodeStr != nodeStr)
         {
-            path.push(allGactions[nodeInfo[currNodeStr].parentIndex]);
+            path.push(allGroundedActions[nodeInfo[currNodeStr].parentIndex]);
             currNodeStr = nodeInfo[currNodeStr].parentNodeState;
         }
         return;
@@ -932,9 +921,7 @@ public:
 
         // GroundedCondition in the stateset into a string and storing these strings in the stringState set
         for(GroundedCondition gc : stateset)
-        {
             stringState.insert(gc.toString());
-        }
 
         // Concatenating the strings in the stringState set to get a single string
         for (auto it = stringState.begin(); it != stringState.end(); it++) 
@@ -956,27 +943,25 @@ public:
         return pathlength;
     }
 
-
-    // Heuristic Astar
-    double heur_Astar(unordered_set<GroundedCondition, GroundedConditionHasher, GroundedConditionComparator>& heurNode)
+    // Empty-Delete-List Heuristic
+    double edl_calc(unordered_set<GroundedCondition, GroundedConditionHasher, GroundedConditionComparator>& heurNode)
     {
         unordered_map<string, bool> closedList;     //closedList of bool values for each cell
         unordered_map<string, node> nodeInfo;
         priority_queue<pair<double, string>, vector<pair<double, string>>, greater<pair<double, string>>> openList;   //f-value, node index (sorted in increasing order of f-value)
 
-        node initNode;
-        initNode.state = heurNode;
-        string h_initNodeStr = symbolichash(initNode.state);
-        initNode.g = 0;
-        initNode.f = 0;
-        initNode.h = 0;
-        nodeInfo[h_initNodeStr] = initNode;
-        openList.push(make_pair(initNode.f, h_initNodeStr));
+        node startNode;
+        startNode.state = heurNode;
+        string h_initNodeStr = symbolichash(startNode.state);
+        startNode.g = 0;
+        startNode.f = 0;
+        startNode.h = 0;
+        nodeInfo[h_initNodeStr] = startNode;
+        openList.push(make_pair(startNode.f, h_initNodeStr));
 
         while (!openList.empty())
         {
             pair<double, string> curNodeStr = openList.top();
-
             openList.pop();
 
             // Check if current state has been expanded before
@@ -984,90 +969,80 @@ public:
                 continue;
 
             closedList[curNodeStr.second] = true;
-
             node curNode = nodeInfo[curNodeStr.second];
 
             // Check if current state satisfies the Goal Conditions
             if(goalReached(curNode)) 
-            {
-                double pathlength = pathLength(curNodeStr.second, nodeInfo, h_initNodeStr);
-                return pathlength;
-            }
-                
-            bool canDoAction = 1;
-            int actCounter = -1;
+                return pathLength(curNodeStr.second, nodeInfo, h_initNodeStr);
+             
+            bool ActionBool = 1;
+            int counter = -1;
 
-            string hashedNewNode;
+            string hashedNode;
 
             // Find all the Valid Grounded Actions from this state
-            for(GroundedAction ga : this->allGactions)
+            for(GroundedAction ga : this->allGroundedActions)
             {
-                actCounter++;
-                canDoAction = 1;
+                counter++;
+                ActionBool = 1;
 
                 //Find out if the action can be taken
-                for(GroundedCondition gc : ga.get_preconditions())
+                for(GroundedCondition gc : ga.getPreconditions())
                 {   
                     if(curNode.state.find(gc) == curNode.state.end())
                     {
-                        canDoAction = 0;
+                        ActionBool = 0;
                         break;
                     }
                 }
 
-                if(canDoAction)
+                if(ActionBool)
                 {
                     node newNode;
 
                     // Apply the action
                     newNode.state = curNode.state;
-                    for(GroundedCondition eff : ga.get_effects())
+                    
+                    // Insert only the positive effects and ignore any deletions
+                    for(GroundedCondition eff : ga.getEffects())
                     {
+                        // printf("Effect: %s\n", eff.toString().c_str());
                         if(eff.get_truth())
-                        {
                             newNode.state.insert(eff);
-                        }
                     }
-                    hashedNewNode = symbolichash(newNode.state);
-                    if (closedList[hashedNewNode])
+
+                    // printf("New Node: %s\n", symbolichash(newNode.state).c_str());
+                    hashedNode = symbolichash(newNode.state);
+                    if (closedList[hashedNode])
                         continue;
 
                     newNode.g = curNode.g + 1;
 
                     double heur = 0;
-                    for(GroundedCondition hgc : env->get_goal_condition())
-                    {   
+                    for(GroundedCondition hgc : env->get_goal_condition())  
                         if(newNode.state.find(hgc) == newNode.state.end())
                             ++heur;
-                    }
+            
                     newNode.h = heur;
-
                     newNode.f = newNode.g + newNode.h;
 
-                    // If the node has not been seen before (or) if the node now has a lesser cost path
-                    if(nodeInfo.find(hashedNewNode) == nodeInfo.end() || newNode.g < nodeInfo[hashedNewNode].g)
+                    if(nodeInfo.find(hashedNode) == nodeInfo.end() || newNode.g < nodeInfo[hashedNode].g)
                     {
-                        newNode.parentIndex = actCounter;
+                        newNode.parentIndex = counter;
                         newNode.parentNodeState = curNodeStr.second;
-                        nodeInfo[hashedNewNode] = newNode;
-                        openList.push(make_pair(newNode.f, hashedNewNode));
+                        nodeInfo[hashedNode] = newNode;
+                        openList.push(make_pair(newNode.f, hashedNode));
                     }    
-                }
-                
+                }             
             }
         }
         return 0;
     }
+
     double getHeuristic(unordered_set<GroundedCondition, GroundedConditionHasher, GroundedConditionComparator>& curNode)
     {
-        // Heuristic 0: Set Heuristic to 0
-        if(heurType == 0)
-        {
-            return 0;
-        }
-
         // Heuristic 1: Set Heuristic to number of goal conditions not satisfied
-        else if (heurType == 1)
+        if (whichHeur == 1)
         {
             double heur = 0;
             for(GroundedCondition gc : env->get_goal_condition())
@@ -1078,12 +1053,14 @@ public:
             return heur;
         }
 
-        // Heuristic 2: Set Heuristic to path length from current state to goal state
-        else if (heurType == 2)
-        {
-            double heur = heur_Astar(curNode);
-            return heur;
-        }
+        // Heuristic 2: Set Heuristic to Empty-Delete-List
+        else if(whichHeur == 2)
+            return edl_calc(curNode);
+
+        // Heuristic 3: Set Heuristic to 0
+        else if(whichHeur == 3)
+            return 0;
+
         return 0;
     }
 
@@ -1092,14 +1069,14 @@ public:
     {
         if (k == 0) 
         {
-            combinations.push_back(tempComb);
+            combinations.push_back(comb);
             return;
         }
         for (int i = offset; i <= numOfSym - k; ++i) 
         {
-            tempComb.push_back(allSymbols[i]);
+            comb.push_back(allSymbols[i]);
             getCombinations(i+1, k-1);
-            tempComb.pop_back();
+            comb.pop_back();
         }
     }
 
@@ -1109,7 +1086,7 @@ public:
         sort(comb.begin(), comb.end()); 
         do
         { 
-        permutations.push_back(comb); 
+            permutations.push_back(comb); 
         } while (next_permutation(comb.begin(), comb.end()));
     }
 
@@ -1133,10 +1110,10 @@ public:
                 getPermutations(combinations[i]);
             
             // Send permutations to actions to get grounded actions
-            getAllGactions(action, permutations);
+            getAllGroundedActions(action, permutations);
 
             combinations.clear();
-            tempComb.clear();
+            comb.clear();
             permutations.clear();
         }
     }
@@ -1150,13 +1127,13 @@ public:
         priority_queue<pair<double, string>, vector<pair<double, string>>, greater<pair<double, string>>> openList;   //f-value, node index (sorted in increasing order of f-value)
 
         // Initialize the initial node
-        node initNode;
-        initNode.state = this->env->get_initial_condition();
-        initNodeStr = symbolichash(initNode.state);
-        initNode.g = 0;
-        initNode.f = 0;
-        nodeInfo[initNodeStr] = initNode;
-        openList.push(make_pair(initNode.f, symbolichash(initNode.state)));
+        node startNode;
+        startNode.state = this->env->get_initial_condition();
+        nodeStr = symbolichash(startNode.state);
+        startNode.g = 0;
+        startNode.f = 0;
+        nodeInfo[nodeStr] = startNode;
+        openList.push(make_pair(startNode.f, symbolichash(startNode.state)));
 
         int numStates = 0;
 
@@ -1164,7 +1141,6 @@ public:
         {
             printf("Length of Open List = %ld \n", openList.size());
             pair<double, string> curNodeStr = openList.top();
-
             openList.pop();
 
             // Check if current state has been expanded before
@@ -1178,44 +1154,40 @@ public:
             // Check if current state satisfies the Goal Conditions
             if(goalReached(curNode)) 
             {
-                // cout<<"Number of states: "<<numStates<<"\n";
-                backtrack(curNodeStr.second, nodeInfo);
+                getPath(curNodeStr.second, nodeInfo);
                 return;
             }
                 
+            bool ActionBool = 1;
+            int counter = -1;
 
-            bool canDoAction = 1;
-            int actCounter = -1;
+            string hashedNode;
 
-            string hashedNewNode;
-
-            for(GroundedAction ga : this->allGactions)
+            for(GroundedAction ga : this->allGroundedActions)
             {
-                actCounter++;
-                canDoAction = 1;
+                counter++;
+                ActionBool = 1;
 
                 //Find out if the action can be taken
-                for(GroundedCondition gc : ga.get_preconditions())
+                for(GroundedCondition gc : ga.getPreconditions())
                 {   
                     if(curNode.state.find(gc) == curNode.state.end())
                     {
-                        canDoAction = 0;
+                        ActionBool = 0;
                         break;
                     }
                 }
 
-                if(canDoAction)
+                if(ActionBool)
                 {
                     node newNode;
 
                     // Apply the action
                     newNode.state = curNode.state;
-                    for(GroundedCondition eff : ga.get_effects())
+                    for(GroundedCondition eff : ga.getEffects())
                     {
                         if(eff.get_truth())
-                        {
                             newNode.state.insert(eff);
-                        }
                         else
                         {
                             // Remove from state
@@ -1224,8 +1196,8 @@ public:
                         }
                     }
 
-                    hashedNewNode = symbolichash(newNode.state);
-                    if (closedList[hashedNewNode])
+                    hashedNode = symbolichash(newNode.state);
+                    if (closedList[hashedNode])
                         continue;
 
                     newNode.g = curNode.g + 1;
@@ -1233,12 +1205,12 @@ public:
                     newNode.f = newNode.g + newNode.h;
 
                     // If the node has not been seen before (or) if the node now has a lesser cost path
-                    if(nodeInfo.find(hashedNewNode) == nodeInfo.end() || newNode.g < nodeInfo[hashedNewNode].g)
+                    if(nodeInfo.find(hashedNode) == nodeInfo.end() || newNode.g < nodeInfo[hashedNode].g)
                     {
-                        newNode.parentIndex = actCounter;
+                        newNode.parentIndex = counter;
                         newNode.parentNodeState = curNodeStr.second;
-                        nodeInfo[hashedNewNode] = newNode;
-                        openList.push(make_pair(newNode.f, hashedNewNode));
+                        nodeInfo[hashedNode] = newNode;
+                        openList.push(make_pair(newNode.f, hashedNode));
                     }    
                 }
                 
@@ -1255,6 +1227,11 @@ list<GroundedAction> planner(Env* env)
     clock_t t;
     t = clock();
     Planner p(env);
+    // Set Which Heuristic to use
+    // 1 - Number of Goal Conditions not satisfied
+    // 2 - Empty-Delete-List
+    // 3 - Default to 0
+    p.whichHeur = 2;
     p.preprocessing();
     p.Astar();
     t = clock() - t;
