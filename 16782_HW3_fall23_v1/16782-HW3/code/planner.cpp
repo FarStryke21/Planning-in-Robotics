@@ -1139,7 +1139,7 @@ public:
 
         while (!openList.empty())
         {
-            printf("Length of Open List = %ld \n", openList.size());
+            printf("Length of Open List = %ld | Number of nodes expanded : %ld \n", openList.size(), nodeInfo.size());
             pair<double, string> curNodeStr = openList.top();
             openList.pop();
 
@@ -1154,6 +1154,9 @@ public:
             // Check if current state satisfies the Goal Conditions
             if(goalReached(curNode)) 
             {
+                // Print the number of expanded nodes
+                printf("The number of expanded Nodes : %ld\n", nodeInfo.size());
+
                 getPath(curNodeStr.second, nodeInfo);
                 return;
             }
@@ -1231,7 +1234,7 @@ list<GroundedAction> planner(Env* env)
     // 1 - Number of Goal Conditions not satisfied
     // 2 - Empty-Delete-List
     // 3 - Default to 0
-    p.whichHeur = 2;
+    p.whichHeur = 3;
     p.preprocessing();
     p.Astar();
     t = clock() - t;

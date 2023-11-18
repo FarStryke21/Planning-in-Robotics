@@ -1,0 +1,165 @@
+Heuristic 1
+	Blocks.txt
+		Time: 0.00565
+		Number of Expanded States: 13 
+		Plan:
+			MoveToTable(A,B) 
+			Move(C,Table,A) 
+			Move(B,Table,C) 
+	
+	BlocksTriangle.txt
+		Time: 0.171906
+		Number of Expanded States: 210
+		Plan:
+			MoveToTable(T0,B0) 
+			MoveToTable(T1,B3) 
+			MoveToTable(B0,B1) 
+			Move(B1,B4,B3) 
+			Move(B0,Table,B1) 
+			Move(T1,Table,B0) 
+	
+	Custom.txt
+		Time: 0.002156
+		Number of Expanded States: 4
+		Plan:
+			UnlockDoor(Door) 
+			MoveToRoom(Robot,RoomA,RoomB,Door) 
+			LockDoor(Door) 
+	
+	FireExtinguisher.txt
+		Time: 0.367829
+		Number of Expanded States: 380
+		Plan:
+			MoveToLoc(A,B) 
+			LandOnRob(B) 
+			MoveTogether(B,W) 
+			FillWater(Q) 
+			MoveTogether(W,F) 
+			TakeOffFromRob(F) 
+			PourOnce(F) 
+			LandOnRob(F) 
+			MoveTogether(F,W) 
+			FillWater(Q) 
+			MoveTogether(W,F) 
+			Charge(Q) 
+			TakeOffFromRob(F) 
+			PourTwice(F) 
+			LandOnRob(F) 
+			MoveTogether(F,W) 
+			FillWater(Q) 
+			MoveTogether(W,F) 
+			Charge(Q) 
+			TakeOffFromRob(F) 
+			PourThrice(F) 
+		
+		
+		
+Heuristic 2
+	Blocks.txt
+		Time: 0.020373
+		Number of Expanded States: 12
+		Plan:
+			MoveToTable(A,B) 
+			Move(C,Table,A) 
+			Move(B,Table,C)
+	
+	BlocksTriangle.txt
+		Time: 1.89551
+		Number of Expanded States: 112
+		Plan:
+			MoveToTable(T0,B0) 
+			MoveToTable(B0,B1) 
+			MoveToTable(T1,B3) 
+			Move(B1,B4,B3) 
+			Move(B0,Table,B1) 
+			Move(T1,Table,B0) 
+	
+	Custom.txt
+		Time: 0.002964
+		Number of Expanded States: 4
+		Plan:
+			UnlockDoor(Door) 
+			MoveToRoom(Robot,RoomA,RoomB,Door) 
+			LockDoor(Door) 
+	
+	FireExtinguisher.txt
+		Time: 548.568
+		Number of Expanded States: 292
+		Plan:
+			MoveToLoc(A,B) 
+			LandOnRob(B) 
+			MoveTogether(B,W) 
+			FillWater(Q) 
+			MoveTogether(W,F) 
+			TakeOffFromRob(F) 
+			PourOnce(F) 
+			LandOnRob(F) 
+			Charge(Q) 
+			MoveTogether(F,W) 
+			FillWater(Q) 
+			MoveTogether(W,F) 
+			TakeOffFromRob(F) 
+			PourTwice(F) 
+			LandOnRob(F) 
+			Charge(Q) 
+			MoveTogether(F,W) 
+			FillWater(Q) 
+			MoveTogether(W,F) 
+			TakeOffFromRob(F) 
+			PourThrice(F) 
+		
+		
+		
+Heuristic 3
+	Blocks.txt
+		Time: 0.009471
+		Number of Expanded States: 16
+		Plan:
+			MoveToTable(A,B) 
+			Move(C,Table,A) 
+			Move(B,Table,C) 
+	
+	BlocksTriangle.txt
+		Time: 2.6131
+		Number of Expanded States: 2211
+		Plan:
+			MoveToTable(T0,B0) 
+			MoveToTable(B0,B1) 
+			MoveToTable(T1,B3) 
+			Move(B1,B4,B3) 
+			Move(B0,Table,B1) 
+			Move(T1,Table,B0) 
+	
+	Custom.txt
+		Time: 0.00211
+		Number of Expanded States: 4
+		Plan:
+			UnlockDoor(Door) 
+			MoveToRoom(Robot,RoomA,RoomB,Door) 
+			LockDoor(Door)
+	
+	FireExtinguisher.txt
+		Time: 0.418082
+		Number of Expanded States: 392
+		Plan:
+			MoveToLoc(A,B) 
+			LandOnRob(B) 
+			MoveTogether(B,W) 
+			FillWater(Q) 
+			MoveTogether(W,F) 
+			TakeOffFromRob(F) 
+			PourOnce(F) 
+			LandOnRob(F) 
+			MoveTogether(F,W) 
+			FillWater(Q) 
+			MoveTogether(W,F) 
+			Charge(Q) 
+			TakeOffFromRob(F) 
+			PourTwice(F) 
+			LandOnRob(F) 
+			MoveTogether(F,W) 
+			FillWater(Q) 
+			MoveTogether(W,F) 
+			Charge(Q) 
+			TakeOffFromRob(F) 
+			PourThrice(F) 
