@@ -812,11 +812,8 @@ class Planner
 { 
 public:  
     Env* env;                                               // Environment
-    int numStates = 0;                                      // Number of states expanded
     stack<GroundedAction> path;                             // Path from initial to goal state
-    string nodeStr;                                         // Initial Node String
     int whichHeur = 1;                                      // Heuristic Type
-    int numOfSym = 0;                                       // Number of Symbols
     vector<vector<string>> combinations, permutations;      // Combinations and Permutations
     vector<string> comb;                                    // Temporary Combination
     vector<GroundedAction> allGroundedActions;                          // All Grounded Actions
@@ -893,16 +890,16 @@ public:
     }
 
     // Check if Goal is reached
-    bool goalReached(node & curNode)
+    bool goalReached(node & currNode)
     {
         for(GroundedCondition gc : env->get_goal_condition()) 
-            if(curNode.state.find(gc) == curNode.state.end())
+            if(currNode.state.find(gc) == currNode.state.end())
                 return 0;
         return 1;
     }
 
     // Backtrack to get the path
-    void getPath(string& goalNodeStr, unordered_map<string, node>& nodeInfo)
+    void getPath(string& goalNodeStr, unordered_map<string, node>& nodeInfo, string nodeStr)
     {
         string currNodeStr = goalNodeStr;
         while(currNodeStr != nodeStr)
@@ -1065,7 +1062,7 @@ public:
     }
 
     // Get all Combinations
-    void getCombinations(int offset, int k)
+    void getCombinations(int offset, int k, int numOfSym)
     {
         if (k == 0) 
         {
@@ -1075,7 +1072,7 @@ public:
         for (int i = offset; i <= numOfSym - k; ++i) 
         {
             comb.push_back(allSymbols[i]);
-            getCombinations(i+1, k-1);
+            getCombinations(i+1, k-1, numOfSym);
             comb.pop_back();
         }
     }
@@ -1099,13 +1096,13 @@ public:
         // Store all Symbols as a Vetor
         vector<string> allSymbolsVect(env->get_symbols().begin(), env->get_symbols().end());
         allSymbols = allSymbolsVect;
-        numOfSym = allSymbols.size();
+        int numOfSym = allSymbols.size();
 
         // Build the list of all Grounded Actions
         for(Action action : allActions)
         {
             int numOfArgs = action.get_args().size();
-            getCombinations(0, numOfArgs);
+            getCombinations(0, numOfArgs, numOfSym);
             for(int i=0 ; i<combinations.size() ; i++)
                 getPermutations(combinations[i]);
             
@@ -1129,7 +1126,7 @@ public:
         // Initialize the initial node
         node startNode;
         startNode.state = this->env->get_initial_condition();
-        nodeStr = symbolichash(startNode.state);
+        string nodeStr = symbolichash(startNode.state);
         startNode.g = 0;
         startNode.f = 0;
         nodeInfo[nodeStr] = startNode;
@@ -1157,7 +1154,7 @@ public:
                 // Print the number of expanded nodes
                 printf("The number of expanded Nodes : %ld\n", nodeInfo.size());
 
-                getPath(curNodeStr.second, nodeInfo);
+                getPath(curNodeStr.second, nodeInfo, nodeStr);
                 return;
             }
                 
@@ -1230,13 +1227,16 @@ list<GroundedAction> planner(Env* env)
     clock_t t;
     t = clock();
     Planner p(env);
+
     // Set Which Heuristic to use
     // 1 - Number of Goal Conditions not satisfied
     // 2 - Empty-Delete-List
     // 3 - Default to 0
+
     p.whichHeur = 3;
     p.preprocessing();
     p.Astar();
+    
     t = clock() - t;
     cout<<"Time Taken: "<<((float)t)/CLOCKS_PER_SEC<<" seconds\n";
 
